@@ -106,7 +106,7 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
     // MARK: - Permissions
 
     func checkPermissions() {
-        let permissionStatus = AVAudioSession.sharedInstance().recordPermission
+        let permissionStatus = AVAudioApplication.shared.recordPermission
 
         switch permissionStatus {
         case .granted:
@@ -125,7 +125,7 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
     }
 
     func requestMicrophonePermission() {
-        AVAudioSession.sharedInstance().requestRecordPermission { [weak self] granted in
+        AVAudioApplication.requestRecordPermission { [weak self] granted in
             DispatchQueue.main.async {
                 self?.micPermissionGranted = granted
                 self?.micPermissionStatus = granted ? "Granted" : "Denied"

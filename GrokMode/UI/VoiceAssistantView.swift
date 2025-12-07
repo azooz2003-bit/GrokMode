@@ -85,14 +85,12 @@ struct VoiceAssistantView: View {
                         .tint(.white)
                     }
 
-                    if viewModel.isListening {
-                        ToolbarSpacer(.fixed, placement: .bottomBar)
-                        DefaultToolbarItem(kind: .search, placement: .bottomBar)
-                        ToolbarSpacer(.fixed, placement: .bottomBar)
+                    ToolbarSpacer(.fixed, placement: .bottomBar)
+                    DefaultToolbarItem(kind: .search, placement: .bottomBar)
+                    ToolbarSpacer(.fixed, placement: .bottomBar)
 
-                        ToolbarItem(placement:.bottomBar) {
-                            stopButton
-                        }
+                    ToolbarItem(placement:.bottomBar) {
+                        stopButton
                     }
                 }
 

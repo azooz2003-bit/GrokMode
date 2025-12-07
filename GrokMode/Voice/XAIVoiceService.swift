@@ -67,9 +67,9 @@ struct VoiceMessage: Codable {
 
     struct ToolDefinition: Codable {
         let type: String // "function"
-        let name: String
-        let description: String
-        let parameters: JSONValue // JSON object of schema
+        let name: String? // Optional - XAI API sometimes sends incomplete tool definitions
+        let description: String? // Optional to handle API variations
+        let parameters: JSONValue? // JSON object of schema - optional to handle incomplete responses
     }
 
     enum JSONValue: Codable {

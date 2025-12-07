@@ -44,39 +44,7 @@ struct GrokPrimaryContentBlock: View {
             VStack(spacing: 6) {
                 // Profile image with AsyncImage or fallback to X icon
                 Group {
-                    if let urlString = profileImageUrl, let url = URL(string: urlString) {
-                        AsyncImage(url: url) { phase in
-                            switch phase {
-                            case .empty:
-                                ProgressView()
-                                    .frame(width: 50, height: 50)
-                            case .success(let image):
-                                image
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(width: 50, height: 50)
-                                    .clipShape(Circle())
-                            case .failure:
-                                Image(sourceIcon)
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(width: 50, height: 50)
-                                    .clipShape(Circle())
-                            @unknown default:
-                                Image(sourceIcon)
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(width: 50, height: 50)
-                                    .clipShape(Circle())
-                            }
-                        }
-                    } else {
-                        Image(sourceIcon)
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: 50, height: 50)
-                            .clipShape(Circle())
-                    }
+                    imageView()
                 }
                 .background(.white.opacity(0.3))
                 .clipShape(Circle())
@@ -104,56 +72,7 @@ struct GrokPrimaryContentBlock: View {
                 mediaGrid(urls: mediaUrls)
             }
 
-            // Bottom: Engagement metrics
-            if let metrics = metrics {
-                HStack(spacing: 16) {
-                    // Views
-                    HStack(spacing: 4) {
-                        Image(systemName: "eye")
-                            .font(.system(size: 11))
-                        Text(formatCount(metrics.views))
-                            .font(.system(size: 12, weight: .semibold))
-                    }
-                    .foregroundColor(.primary.opacity(0.9))
-
-                    // Retweets
-                    HStack(spacing: 4) {
-                        Image(systemName: "arrow.2.squarepath")
-                            .font(.system(size: 11))
-                        Text(formatCount(metrics.retweets))
-                            .font(.system(size: 12, weight: .semibold))
-                    }
-                    .foregroundColor(.primary.opacity(0.9))
-
-                    // Likes
-                    HStack(spacing: 4) {
-                        Image(systemName: "heart")
-                            .font(.system(size: 11))
-                        Text(formatCount(metrics.likes))
-                            .font(.system(size: 12, weight: .semibold))
-                    }
-                    .foregroundColor(.primary.opacity(0.9))
-
-                    Spacer()
-
-                    // X source icon
-                    Image(sourceIcon)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 20, height: 20)
-                        .opacity(0.8)
-                }
-            } else {
-                // Fallback if no metrics
-                HStack {
-                    Spacer()
-                    Image(sourceIcon)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 20, height: 20)
-                        .opacity(0.8)
-                }
-            }
+            bottomInfo()
         }
         .padding(16)
         .background(.regularMaterial)
@@ -179,6 +98,97 @@ struct GrokPrimaryContentBlock: View {
             return String(format: "%.1fK", Double(count) / 1_000)
         } else {
             return "\(count)"
+        }
+    }
+
+    @ViewBuilder
+    private func bottomInfo() -> some View {
+        // Bottom: Engagement metrics
+        if let metrics = metrics {
+            HStack(spacing: 16) {
+                // Views
+                HStack(spacing: 4) {
+                    Image(systemName: "eye")
+                        .font(.system(size: 11))
+                    Text(formatCount(metrics.views))
+                        .font(.system(size: 12, weight: .semibold))
+                }
+                .foregroundColor(.primary.opacity(0.9))
+
+                // Retweets
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.2.squarepath")
+                        .font(.system(size: 11))
+                    Text(formatCount(metrics.retweets))
+                        .font(.system(size: 12, weight: .semibold))
+                }
+                .foregroundColor(.primary.opacity(0.9))
+
+                // Likes
+                HStack(spacing: 4) {
+                    Image(systemName: "heart")
+                        .font(.system(size: 11))
+                    Text(formatCount(metrics.likes))
+                        .font(.system(size: 12, weight: .semibold))
+                }
+                .foregroundColor(.primary.opacity(0.9))
+
+                Spacer()
+
+                // X source icon
+                Image(sourceIcon)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 20, height: 20)
+                    .opacity(0.8)
+            }
+        } else {
+            // Fallback if no metrics
+            HStack {
+                Spacer()
+                Image(sourceIcon)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 20, height: 20)
+                    .opacity(0.8)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func imageView() -> some View {
+        if let urlString = profileImageUrl, let url = URL(string: urlString) {
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .empty:
+                    ProgressView()
+                        .frame(width: 50, height: 50)
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 50, height: 50)
+                        .clipShape(Circle())
+                case .failure:
+                    Image(sourceIcon)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 50, height: 50)
+                        .clipShape(Circle())
+                @unknown default:
+                    Image(sourceIcon)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 50, height: 50)
+                        .clipShape(Circle())
+                }
+            }
+        } else {
+            Image(sourceIcon)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 50, height: 50)
+                .clipShape(Circle())
         }
     }
 
