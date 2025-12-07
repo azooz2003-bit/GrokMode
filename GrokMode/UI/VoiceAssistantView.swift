@@ -105,7 +105,18 @@ struct VoiceAssistantView: View {
                 }
             }
         }
-        .overlay(toolConfirmationOverlay)
+        .sheet(item: Binding(
+            get: { viewModel.pendingToolCall },
+            set: { if $0 == nil { viewModel.rejectToolCall() } }
+        )) { toolCall in
+            ToolConfirmationSheet(
+                toolCall: toolCall,
+                onApprove: { viewModel.approveToolCall() },
+                onCancel: { viewModel.rejectToolCall() }
+            )
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
+        }
     }
 
     // MARK: - Subviews
@@ -206,51 +217,80 @@ struct VoiceAssistantView: View {
         }
         .glassEffect(.clear.interactive())
     }
+}
 
-    private var toolConfirmationOverlay: some View {
-        Group {
-            if let toolCall = viewModel.pendingToolCall {
-                ZStack {
-                    Color.black.opacity(0.5)
-                        .ignoresSafeArea()
+// MARK: - Tool Confirmation Sheet
 
-                    VStack(spacing: 20) {
-                        Text("Preview Action")
-                            .font(.headline)
-                            .foregroundColor(.primary)
+struct ToolConfirmationSheet: View {
+    let toolCall: PendingToolCall
+    let onApprove: () -> Void
+    let onCancel: () -> Void
 
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(toolCall.previewTitle)
-                                .font(.subheadline)
-                                .fontWeight(.bold)
+    @Environment(\.dismiss) private var dismiss
 
-                            Text(toolCall.previewContent)
-                                .font(.body)
-                                .padding()
-                                .background(Color.gray.opacity(0.1))
-                                .cornerRadius(8)
-                        }
+    var body: some View {
+        VStack(spacing: 24) {
+            // Header with icon
+            VStack(spacing: 12) {
+                Image(systemName: "exclamationmark.shield.fill")
+                    .font(.system(size: 50))
+                    .foregroundStyle(.blue.gradient)
 
-                        HStack(spacing: 20) {
-                            Button("Cancel") {
-                                viewModel.rejectToolCall()
-                            }
-                            .buttonStyle(.bordered)
-                            .foregroundColor(.red)
-
-                            Button("Approve") {
-                                viewModel.approveToolCall()
-                            }
-                            .buttonStyle(.borderedProminent)
-                        }
-                    }
-                    .padding()
-                    .background(Color(.systemBackground))
-                    .cornerRadius(16)
-                    .shadow(radius: 10)
-                    .padding(.horizontal, 40)
-                }
+                Text("Preview Action")
+                    .font(.title2)
+                    .fontWeight(.bold)
             }
+            .padding(.top, 20)
+
+            // Tool details with glass effect
+            VStack(alignment: .leading, spacing: 12) {
+                Text(toolCall.previewTitle)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+
+                Text(toolCall.previewContent)
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.leading)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(20)
+            .glassEffect(.regular)
+
+            Spacer()
+
+            // Action buttons
+            VStack(spacing: 12) {
+                Button {
+                    onApprove()
+                    dismiss()
+                } label: {
+                    Text("Approve")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                }
+                .buttonStyle(.glassProminent)
+                .tint(.blue)
+
+                Button {
+                    onCancel()
+                    dismiss()
+                } label: {
+                    Text("Cancel")
+                        .font(.headline)
+                        .foregroundStyle(.red)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                }
+                .buttonStyle(.glass)
+            }
+            .padding(.bottom, 20)
+        }
+        .padding(.horizontal, 24)
+        .presentationBackground {
+            Color.clear
+                .background(.ultraThinMaterial)
         }
     }
 }

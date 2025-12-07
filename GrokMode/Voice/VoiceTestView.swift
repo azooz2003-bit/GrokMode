@@ -371,7 +371,7 @@ enum ConnectionState {
     case disconnected, connecting, connected, error
 }
 
-struct PendingToolCall {
+struct PendingToolCall: Identifiable {
     let id: String
     let functionName: String
     let arguments: String

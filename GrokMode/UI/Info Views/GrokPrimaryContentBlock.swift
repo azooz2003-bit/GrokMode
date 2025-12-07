@@ -15,7 +15,7 @@ struct TweetMetrics {
 
 struct GrokPrimaryContentBlock: View {
     let sourceIcon: ImageResource = ImageResource(name: "X", bundle: .main)
-    let userIcon: ImageResource
+    let profileImageUrl: String?  // URL to profile image
     let displayName: String
     let username: String
     let text: String
@@ -27,6 +27,7 @@ struct GrokPrimaryContentBlock: View {
         let _ = print("\n🖼️ ===== RENDERING TWEET CARD =====")
         let _ = print("🖼️ Display Name: \(displayName)")
         let _ = print("🖼️ Username: @\(username)")
+        let _ = print("🖼️ Profile Image URL: \(profileImageUrl ?? "NIL")")
         let _ = print("🖼️ Text Length: \(text.count) chars")
         let _ = print("🖼️ Media URLs: \(mediaUrls?.count ?? 0)")
         let _ = print("🖼️ Metrics: \(metrics != nil ? "PRESENT" : "NIL")")
@@ -41,12 +42,44 @@ struct GrokPrimaryContentBlock: View {
         VStack(alignment: .center, spacing: 12) {
             // Top: User icon and name centered and stacked
             VStack(spacing: 6) {
-                Image(userIcon)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 50, height: 50)
-                    .background(.white.opacity(0.3))
-                    .clipShape(Circle())
+                // Profile image with AsyncImage or fallback to X icon
+                Group {
+                    if let urlString = profileImageUrl, let url = URL(string: urlString) {
+                        AsyncImage(url: url) { phase in
+                            switch phase {
+                            case .empty:
+                                ProgressView()
+                                    .frame(width: 50, height: 50)
+                            case .success(let image):
+                                image
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 50, height: 50)
+                                    .clipShape(Circle())
+                            case .failure:
+                                Image(sourceIcon)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 50, height: 50)
+                                    .clipShape(Circle())
+                            @unknown default:
+                                Image(sourceIcon)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 50, height: 50)
+                                    .clipShape(Circle())
+                            }
+                        }
+                    } else {
+                        Image(sourceIcon)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 50, height: 50)
+                            .clipShape(Circle())
+                    }
+                }
+                .background(.white.opacity(0.3))
+                .clipShape(Circle())
 
                 Text(displayName)
                     .font(.system(size: 15, weight: .semibold))
@@ -194,7 +227,7 @@ struct GrokPrimaryContentBlock: View {
             Spacer()
 
             GrokPrimaryContentBlock(
-                userIcon: ImageResource(name: "Grok", bundle: .main),
+                profileImageUrl: nil,  // Will show X icon as fallback
                 displayName: "Elon Musk",
                 username: "elonmusk",
                 text: "Just had a great conversation with Grok about the future of AI and space exploration. The possibilities are endless when you combine these technologies!",
