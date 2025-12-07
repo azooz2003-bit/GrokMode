@@ -13,9 +13,9 @@ enum HTTPMethod: String {
 
 class XToolOrchestrator {
     private var bearerToken: String {
-        APIConfig.token
+        APIConfig.xApiKey
     }
-    private var baseURL: String { APIConfig.baseURL }
+    private var baseURL: String { APIConfig.xBaseURL }
 
     func executeTool(_ tool: XTool, parameters: [String: Any], id: String? = nil) async -> XToolCallResult {
         do {
