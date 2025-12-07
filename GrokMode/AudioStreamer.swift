@@ -62,12 +62,9 @@ class AudioStreamer: NSObject {
         audioEngine.attach(playerNode)
         
         // Connect player -> Mixer -> Output
-        // Use processingFormat (Float32) for the specialized graph connections where possible, 
-        // or let the engine handle format conversion from the source xaiFormat.
-        // We will schedule buffers in xaiFormat (Int16) if possible, but usually PlayerNode prefers Float32 or needs conversion.
-        // Let's connect with the format we intend to play (or let engine convert).
-        audioEngine.connect(playerNode, to: mixerNode, format: nil) // Allow dynamic format or set explicitly if issues arise
-
+        // Use processingFormat (Float32) to ensure matching format for scheduling
+        audioEngine.connect(playerNode, to: mixerNode, format: processingFormat)
+        
         // Use the XAI format for consistency refernece
         audioFormat = xaiFormat
 
@@ -152,15 +149,21 @@ class AudioStreamer: NSObject {
     private func convertDataToBuffer(_ data: Data) -> AVAudioPCMBuffer? {
         // Data is Int16 (2 bytes per sample) 24kHz Mono
         let frameCount = UInt32(data.count / 2)
-        guard let buffer = AVAudioPCMBuffer(pcmFormat: xaiFormat, frameCapacity: frameCount) else { return nil }
+        
+        // Use processingFormat (Float32) for playback
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: processingFormat, frameCapacity: frameCount) else { return nil }
         
         buffer.frameLength = frameCount
         
-        // Copy data into buffer
+        guard let floatChannelData = buffer.floatChannelData?[0] else { return nil }
+        
+        // Convert Int16 to Float32
         data.withUnsafeBytes { (bytes: UnsafeRawBufferPointer) in
-            if let src = bytes.bindMemory(to: Int16.self).baseAddress,
-               let dst = buffer.int16ChannelData?[0] {
-                dst.assign(from: src, count: Int(frameCount))
+            if let int16Bytes = bytes.bindMemory(to: Int16.self).baseAddress {
+                for i in 0..<Int(frameCount) {
+                    // Normalize Int16 to Float [-1.0, 1.0]
+                    floatChannelData[i] = Float(int16Bytes[i]) / 32768.0
+                }
             }
         }
         
