@@ -106,7 +106,7 @@ struct TweetConversationCard: View {
 
     var body: some View {
         GrokPrimaryContentBlock(
-            userIcon: ImageResource(name: "X", bundle: .main),
+            profileImageUrl: author?.profile_image_url,
             displayName: author?.name ?? "Unknown",
             username: author?.username ?? "unknown",
             text: tweet.text,
@@ -123,6 +123,7 @@ struct TweetConversationCard: View {
         print("🎨 Tweet ID: \(tweet.id)")
         print("🎨 Tweet Text: \(tweet.text.prefix(50))...")
         print("🎨 Author: \(author?.username ?? "nil")")
+        print("🎨 Profile Image URL: \(author?.profile_image_url ?? "NIL")")
         print("🎨 Media URLs: \(mediaUrls.count)")
         print("🎨 Public Metrics Object: \(tweet.public_metrics != nil ? "EXISTS" : "NIL")")
 
