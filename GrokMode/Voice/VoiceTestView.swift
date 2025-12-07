@@ -99,9 +99,33 @@ struct ConnectionStatusView: View {
             
             HStack {
                 Text("Audio:")
-                Image(systemName: viewModel.isAudioStreaming ? "waveform.circle.fill" : "waveform.circle")
-                    .foregroundColor(viewModel.isAudioStreaming ? .blue : .gray)
-                Text(viewModel.isAudioStreaming ? "Streaming" : "Not Streaming")
+                Image(systemName: "waveform")
+                    .foregroundColor(viewModel.isAudioStreaming ? .green : .gray)
+                Text(viewModel.isAudioStreaming ? "Streaming Audio" : "Audio Idle")
+            }
+            
+            // X Auth Status
+            HStack {
+                Text("X Auth:")
+                if viewModel.isXAuthenticated {
+                    Image(systemName: "checkmark.circle.fill").foregroundColor(.blue)
+                    Text(viewModel.xUserHandle ?? "Logged In")
+                    Spacer()
+                    Button("Logout") {
+                        viewModel.logoutX()
+                    }
+                    .font(.caption)
+                    .buttonStyle(.bordered)
+                } else {
+                    Image(systemName: "xmark.circle").foregroundColor(.gray)
+                    Text("Not Logged In")
+                    Spacer()
+                    Button("Login with X") {
+                        viewModel.loginWithX()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.black)
+                }
             }
 
             HStack {
@@ -390,13 +414,41 @@ class VoiceTestViewModel: NSObject, AudioStreamerDelegate {
     // Audio Streamer
     private var audioStreamer: AudioStreamer!
 
+    // X Auth
+    var isXAuthenticated = false
+    var xUserHandle: String?
+    private var authCancellable: AnyCancellable?
+
     override init() {
         super.init()
         // Initialize AudioStreamer
         audioStreamer = AudioStreamer()
         audioStreamer.delegate = self
         
+        setupAuthObservation()
         checkPermissions()
+    }
+    
+    private func setupAuthObservation() {
+        // Initial state
+        self.isXAuthenticated = XAuthService.shared.isAuthenticated
+        self.xUserHandle = XAuthService.shared.currentUserHandle
+        
+        // Observe changes
+        authCancellable = XAuthService.shared.$isAuthenticated
+            .receive(on: RunLoop.main)
+            .sink { [weak self] isAuthenticated in
+                self?.isXAuthenticated = isAuthenticated
+                self?.xUserHandle = XAuthService.shared.currentUserHandle
+            }
+    }
+    
+    func loginWithX() {
+        XAuthService.shared.login()
+    }
+    
+    func logoutX() {
+        XAuthService.shared.logout()
     }
 
     var canConnect: Bool {
@@ -733,8 +785,8 @@ class VoiceTestViewModel: NSObject, AudioStreamerDelegate {
                     self.audioStreamer.playAudio(audioData) 
                     self.isGeraldSpeaking = true
                 }
-                title = "Audio Chunk"
-                details = "Gerald speaking (\(message.delta?.count ?? 0) chars)"
+                // Suppressed logging as per user request
+                return
 
             case "error":
                 title = "XAI Error"
@@ -746,12 +798,62 @@ class VoiceTestViewModel: NSObject, AudioStreamerDelegate {
                 title = message.type
                 if let text = message.text {
                     details = text
+                    // Check for XML tool calls in text events (if any)
+                    self.checkForHallucinatedToolCalls(in: text)
                 } else if let audio = message.audio {
-                    details = "Audio data (\(audio.count) chars)"
+                    // Suppress audio logs
+                    return
                 }
             }
-
+            
             self.logMessage(.websocket, .received, title, details)
+        }
+    }
+    
+    // Check for XML-style function calls that the model might generate as text
+    private func checkForHallucinatedToolCalls(in text: String) {
+        // Regex to find <function_call name=X>...</function_call>
+        // Simple implementation assuming non-nested structure
+        let pattern = "<function_call name=([^>]+)>(.*?)</function_call>"
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.dotMatchesLineSeparators]) else { return }
+        
+        let nsString = text as NSString
+        let results = regex.matches(in: text, options: [], range: NSRange(location: 0, length: nsString.length))
+        
+        for result in results {
+            let functionName = nsString.substring(with: result.range(at: 1)).trimmingCharacters(in: .whitespacesAndNewlines)
+            let innerContent = nsString.substring(with: result.range(at: 2))
+            
+            print("FALLBACK: Found XML tool call: \(functionName)")
+            
+            // Parse arguments: <argument name=key>value</argument>
+            var jsonArgs: [String: Any] = [:]
+            let argPattern = "<argument name=([^>]+)>(.*?)</argument>"
+            if let argRegex = try? NSRegularExpression(pattern: argPattern, options: [.dotMatchesLineSeparators]) {
+                let argResults = argRegex.matches(in: innerContent, options: [], range: NSRange(location: 0, length: (innerContent as NSString).length))
+                
+                for argResult in argResults {
+                    let key = (innerContent as NSString).substring(with: argResult.range(at: 1)).trimmingCharacters(in: .whitespacesAndNewlines)
+                    let value = (innerContent as NSString).substring(with: argResult.range(at: 2))
+                    jsonArgs[key] = value
+                }
+            }
+            
+            // Serialize to JSON string for compatibility
+            if let jsonData = try? JSONSerialization.data(withJSONObject: jsonArgs),
+               let jsonString = String(data: jsonData, encoding: .utf8) {
+                
+                let toolCall = VoiceMessage.ToolCall(
+                    id: "call_xml_\(Int(Date().timeIntervalSince1970))", // Generate fake ID
+                    type: "function",
+                    function: VoiceMessage.FunctionCall(name: functionName, arguments: jsonString)
+                )
+                
+                // Execute on main thread
+                DispatchQueue.main.async {
+                    self.handleToolCall(toolCall)
+                }
+            }
         }
     }
 

@@ -13,7 +13,10 @@ enum HTTPMethod: String {
 
 class XToolOrchestrator {
     private var bearerToken: String {
-        Config.xApiKey
+        if let userToken = Config.currentUserToken {
+            return userToken
+        }
+        return Config.xApiKey
     }
     private var baseURL: String { Config.baseXURL }
 

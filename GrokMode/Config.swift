@@ -28,5 +28,9 @@ enum Config {
         }
         return apiKey
     }()
+    static var currentUserToken: String? {
+        return XAuthService.shared.getAccessToken()
+    }
+    
     static let baseXURL = "https://api.x.com"
 }
