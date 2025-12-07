@@ -281,7 +281,8 @@ struct SystemMessageBubble: View {
                         quote_count: 20,
                         impression_count: 10000,
                         bookmark_count: 30
-                    )
+                    ),
+                    
                 ),
                 author: XUser(id: "1", name: "Test User", username: "testuser", profile_image_url: nil),
                 mediaUrls: []

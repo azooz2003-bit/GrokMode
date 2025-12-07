@@ -112,27 +112,27 @@ struct GrokPrimaryContentBlock: View {
                         Image(systemName: "eye")
                             .font(.system(size: 11))
                         Text(formatCount(metrics.views))
-                            .font(.system(size: 12, weight: .medium))
+                            .font(.system(size: 12, weight: .semibold))
                     }
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.primary.opacity(0.9))
 
                     // Retweets
                     HStack(spacing: 4) {
                         Image(systemName: "arrow.2.squarepath")
                             .font(.system(size: 11))
                         Text(formatCount(metrics.retweets))
-                            .font(.system(size: 12, weight: .medium))
+                            .font(.system(size: 12, weight: .semibold))
                     }
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.primary.opacity(0.9))
 
                     // Likes
                     HStack(spacing: 4) {
                         Image(systemName: "heart")
                             .font(.system(size: 11))
                         Text(formatCount(metrics.likes))
-                            .font(.system(size: 12, weight: .medium))
+                            .font(.system(size: 12, weight: .semibold))
                     }
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.primary.opacity(0.9))
 
                     Spacer()
 
@@ -141,7 +141,7 @@ struct GrokPrimaryContentBlock: View {
                         .resizable()
                         .scaledToFit()
                         .frame(width: 20, height: 20)
-                        .opacity(0.5)
+                        .opacity(0.8)
                 }
             } else {
                 // Fallback if no metrics
@@ -151,15 +151,16 @@ struct GrokPrimaryContentBlock: View {
                         .resizable()
                         .scaledToFit()
                         .frame(width: 20, height: 20)
-                        .opacity(0.5)
+                        .opacity(0.8)
                 }
             }
         }
         .padding(16)
-        .background(
+        .background(.regularMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .overlay(
             RoundedRectangle(cornerRadius: 20)
-                .fill(.primaryChatItemBackground.opacity(0.3))
-                .stroke(Color.gray.opacity(0.7), lineWidth: 0.5)
+                .stroke(.primaryChatItemBackground.opacity(0.5), lineWidth: 1)
         )
         .padding(.horizontal, 10)
         .contentShape(Rectangle())
@@ -222,21 +223,46 @@ struct GrokPrimaryContentBlock: View {
 #Preview {
     ZStack {
         Color(.systemBackground).ignoresSafeArea()
-
-        VStack {
-            Spacer()
-
-            GrokPrimaryContentBlock(
-                profileImageUrl: nil,  // Will show X icon as fallback
-                displayName: "Elon Musk",
-                username: "elonmusk",
-                text: "Just had a great conversation with Grok about the future of AI and space exploration. The possibilities are endless when you combine these technologies!",
-                mediaUrls: nil,
-                metrics: TweetMetrics(likes: 12500, retweets: 3400, views: 150000),
-                tweetUrl: "https://twitter.com/elonmusk/status/1234567890"
-            )
-
-            Spacer()
-        }
+        ScrollView{
+            VStack(spacing: 24){
+                Spacer()
+                
+                GrokPrimaryContentBlock(
+                    profileImageUrl: nil,  // Will show X icon as fallback
+                    displayName: "Elon Musk",
+                    username: "elonmusk",
+                    text: "Just had a great conversation with Grok about the future of AI and space exploration. The possibilities are endless when you combine these technologies!",
+                    mediaUrls: nil,
+                    metrics: TweetMetrics(likes: 12500, retweets: 3400, views: 150000),
+                    tweetUrl: "https://twitter.com/elonmusk/status/1234567890"
+                )
+                
+                
+                GrokPrimaryContentBlock(
+                    profileImageUrl: nil,  // Will show X icon as fallback
+                    displayName: "Elon Musk",
+                    username: "elonmusk",
+                    text: "Just had a great conversation with Grok about the future of AI and space exploration. The possibilities are endless when you combine these technologies!",
+                    mediaUrls: nil,
+                    metrics: TweetMetrics(likes: 12500, retweets: 3400, views: 150000),
+                    tweetUrl: "https://twitter.com/elonmusk/status/1234567890"
+                )
+                
+                
+                
+                
+                GrokPrimaryContentBlock(
+                    profileImageUrl: nil,  // Will show X icon as fallback
+                    displayName: "Elon Musk",
+                    username: "elonmusk",
+                    text: "Just had a great conversation with Grok about the future of AI and space exploration. The possibilities are endless when you combine these technologies!",
+                    mediaUrls: nil,
+                    metrics: TweetMetrics(likes: 12500, retweets: 3400, views: 150000),
+                    tweetUrl: "https://twitter.com/elonmusk/status/1234567890"
+                )
+                
+                
+                Spacer()
+            }}
     }
 }
