@@ -19,12 +19,14 @@ class XToolOrchestrator {
     /// Determines which bearer token to use based on the endpoint requirements
     /// - OAuth 2.0 User Context: For user actions and private data access
     /// - App-only Bearer Token: For public data lookups
-    private func getBearerToken(for tool: XTool) -> String {
+    private func getBearerToken(for tool: XTool) async throws -> String {
         if requiresUserContext(tool) {
             // Use user OAuth token for endpoints that require user context
-            guard let userToken = Config.currentUserToken else {
-                print("WARNING: \(tool.name) requires user authentication but no user token available. Falling back to API key.")
-                return Config.xApiKey
+            guard let userToken = await XAuthService.shared.getValidAccessToken() else {
+                throw XToolCallError(
+                    code: "AUTH_REQUIRED",
+                    message: "This action requires user authentication. Please log in to your X/Twitter account."
+                )
             }
             return userToken
         } else {
@@ -146,10 +148,14 @@ class XToolOrchestrator {
     }
 
     func executeTool(_ tool: XTool, parameters: [String: Any], id: String? = nil) async -> XToolCallResult {
-        do {
-            let request = try buildRequest(for: tool, parameters: parameters)
+        return await executeToolWithRetry(tool, parameters: parameters, id: id, attempt: 1)
+    }
 
-            print("TOOL CALL: Executing \(tool.name)")
+    private func executeToolWithRetry(_ tool: XTool, parameters: [String: Any], id: String?, attempt: Int) async -> XToolCallResult {
+        do {
+            let request = try await buildRequest(for: tool, parameters: parameters)
+
+            print("TOOL CALL: Executing \(tool.name) (attempt \(attempt))")
             print("TOOL CALL: URL: \(request.url?.absoluteString ?? "nil")")
             print("TOOL CALL: Method: \(request.httpMethod ?? "nil")")
             if let body = request.httpBody, let bodyString = String(data: body, encoding: .utf8) {
@@ -176,6 +182,22 @@ class XToolOrchestrator {
             if httpResponse.statusCode >= 200 && httpResponse.statusCode < 300 {
                 let responseString = String(data: data, encoding: .utf8)
                 return .success(id: id, toolName: tool.name, response: responseString, statusCode: httpResponse.statusCode)
+            } else if httpResponse.statusCode == 401 && attempt == 1 && requiresUserContext(tool) {
+                // 401 on first attempt - token might have been revoked or invalid
+                // Force logout and return clear error
+                print("TOOL CALL: 401 Unauthorized - User needs to authenticate")
+                await MainActor.run {
+                    XAuthService.shared.logout()
+                }
+                return .failure(
+                    id: id,
+                    toolName: tool.name,
+                    error: XToolCallError(
+                        code: "AUTH_REQUIRED",
+                        message: "Authentication required. Please log in to your X/Twitter account to perform this action."
+                    ),
+                    statusCode: httpResponse.statusCode
+                )
             } else {
                 let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
                 return .failure(
@@ -225,7 +247,7 @@ class XToolOrchestrator {
         }
     }
 
-    internal func buildRequest(for tool: XTool, parameters: [String: Any]) throws -> URLRequest {
+    internal func buildRequest(for tool: XTool, parameters: [String: Any]) async throws -> URLRequest {
         var path: String
         var method: HTTPMethod
         var queryItems: [URLQueryItem] = []
@@ -783,7 +805,7 @@ class XToolOrchestrator {
         var request = URLRequest(url: url)
         request.httpMethod = method.rawValue
         // Use the appropriate authentication based on endpoint requirements
-        let token = getBearerToken(for: tool)
+        let token = try await getBearerToken(for: tool)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 

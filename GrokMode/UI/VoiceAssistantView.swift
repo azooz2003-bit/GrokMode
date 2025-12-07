@@ -59,10 +59,10 @@ struct VoiceAssistantView: View {
                     ToolbarItem(placement:.bottomBar) {
                         Button {
                             // Reconnect if needed, then start listening
-                            if !viewModel.isConnected {
-                                viewModel.reconnect()
-                            } else {
-                                withAnimation {
+                            withAnimation {
+                                if !viewModel.isConnected {
+                                    viewModel.reconnect()
+                                } else {
                                     viewModel.startListening()
                                 }
                             }
@@ -74,6 +74,7 @@ struct VoiceAssistantView: View {
                         .tint(.white)
                         .disabled(!viewModel.isConnected && !viewModel.isConnecting)
                         .opacity(viewModel.isConnected ? 1.0 : 0.5)
+                        .matchedGeometryEffect(id: "waveform", in: morphNamespace)
                     }
                 } else {
                     ToolbarItem(placement:.bottomBar) {
@@ -83,6 +84,7 @@ struct VoiceAssistantView: View {
                         }
                         .buttonStyle(.glassProminent)
                         .tint(.white)
+                        .matchedGeometryEffect(id: "waveform", in: morphNamespace)
                     }
 
                     ToolbarSpacer(.fixed, placement: .bottomBar)
