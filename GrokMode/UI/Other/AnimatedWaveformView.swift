@@ -13,6 +13,13 @@ class WaveformAnimator {
 
     private var timer: Timer?
     private var isAnimating = false
+    private var phaseOffsets: [CGFloat] = []
+    private var time: TimeInterval = 0
+
+    init() {
+        // Generate random phase offsets for each bar to create varied oscillation
+        phaseOffsets = (0..<30).map { _ in CGFloat.random(in: 0...2 * .pi) }
+    }
 
     func startAnimating() {
         guard !isAnimating else { return }
@@ -39,15 +46,25 @@ class WaveformAnimator {
     /// - Parameter audioLevel: The audio level (0.0 to 1.0) to drive the waveform animation
     func updateAudioLevel(_ audioLevel: CGFloat) {
         let clampedLevel = max(0.0, min(1.0, audioLevel))
+        time += 0.05 // Increment time for wave animation
 
-        // Generate dynamic amplitudes based on audio level
+        // Generate dynamic amplitudes with wave-like oscillation
         let newAmplitudes = amplitudes.enumerated().map { index, currentValue in
-            // Create varied heights across bars for visual interest
-            let variance = CGFloat.random(in: 0.8...1.2)
-            let targetValue = clampedLevel * variance
+            // Create wave pattern across bars with individual phase offsets
+            let wavePosition = CGFloat(index) * 0.5 // Spacing between bars in the wave
+            let phase = phaseOffsets[index]
+            let wave = sin(time * 4 + wavePosition + phase) // Oscillate over time
 
-            // Smooth transition
-            return currentValue * 0.7 + targetValue * 0.3
+            // Combine base audio level with wave oscillation
+            let baseVariance = CGFloat.random(in: 0.6...1.4) // Wider variance range
+            let waveInfluence = wave * 0.3 // Wave adds ±30% variation
+            let targetValue = clampedLevel * baseVariance * (1.0 + waveInfluence)
+
+            // Clamp to valid range
+            let clampedTarget = max(0.1, min(1.0, targetValue))
+
+            // Smooth transition with momentum
+            return currentValue * 0.6 + clampedTarget * 0.4
         }
 
         withAnimation(.easeInOut(duration: 0.05)) {

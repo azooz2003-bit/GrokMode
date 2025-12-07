@@ -285,7 +285,7 @@ class XAIVoiceService {
     }
 
     // MARK: - Token Acquisition
-
+    @concurrent
     func getEphemeralToken() async throws -> SessionToken {
         print("🔑 ===== STARTING EPHEMERAL TOKEN REQUEST =====")
         print("🔑 Requesting ephemeral token from XAI API...")
@@ -389,7 +389,6 @@ class XAIVoiceService {
     }
 
     // MARK: - WebSocket Connection
-
     func connect() async throws {
         print("🔌 Connecting to XAI Voice API...")
 

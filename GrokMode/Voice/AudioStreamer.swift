@@ -12,6 +12,7 @@ protocol AudioStreamerDelegate: AnyObject {
     func audioStreamerDidReceiveAudioData(_ data: Data)
     func audioStreamerDidDetectSpeechStart()
     func audioStreamerDidDetectSpeechEnd()
+    func audioStreamerDidUpdateAudioLevel(_ level: Float)
 }
 
 class AudioStreamer: NSObject {
@@ -185,6 +186,11 @@ class AudioStreamer: NSObject {
 
         // Simple VAD (Voice Activity Detection)
         let rms = calculateRMS(convertedBuffer)
+
+        // Normalize RMS from dB (-100 to 0) to 0.0 to 1.0 for waveform
+        // Typical speech is around -30 to -10 dB
+        let normalizedLevel = max(0, min(1, (rms + 50) / 50)) // Map -50dB to 0dB -> 0.0 to 1.0
+        delegate?.audioStreamerDidUpdateAudioLevel(normalizedLevel)
 
         if rms > silenceThreshold && !speechDetected {
             // Speech started

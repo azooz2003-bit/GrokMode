@@ -17,7 +17,7 @@ struct ToolCallData: Identifiable, Codable {
     let timestamp: Date
 }
 
-struct XTweet: Codable, Identifiable {
+struct XTweet: Codable, Identifiable, Sendable {
     let id: String
     let text: String
     let author_id: String?
@@ -25,11 +25,11 @@ struct XTweet: Codable, Identifiable {
     let attachments: Attachments?
     let public_metrics: PublicMetrics?
 
-    struct Attachments: Codable {
+    struct Attachments: Codable, Sendable {
         let media_keys: [String]?
     }
 
-    struct PublicMetrics: Codable {
+    struct PublicMetrics: Codable, Sendable {
         let retweet_count: Int?
         let reply_count: Int?
         let like_count: Int?
@@ -39,14 +39,14 @@ struct XTweet: Codable, Identifiable {
     }
 }
 
-struct XUser: Codable, Identifiable {
+struct XUser: Codable, Identifiable, Sendable {
     let id: String
     let name: String
     let username: String
     let profile_image_url: String?
 }
 
-struct XMedia: Codable, Identifiable {
+struct XMedia: Codable, Identifiable, Sendable {
     let media_key: String
     let type: String  // "photo", "video", "animated_gif"
     let url: String?  // Image URL for photos
@@ -57,7 +57,7 @@ struct XMedia: Codable, Identifiable {
     var id: String { media_key }
 
     // Get the best URL to display (prefer url for photos, preview for videos)
-    var displayUrl: String? {
+    nonisolated var displayUrl: String? {
         url ?? preview_image_url
     }
 }

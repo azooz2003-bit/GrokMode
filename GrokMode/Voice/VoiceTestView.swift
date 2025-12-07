@@ -923,6 +923,10 @@ class VoiceTestViewModel: NSObject, AudioStreamerDelegate {
         }
     }
 
+    func audioStreamerDidUpdateAudioLevel(_ level: Float) {
+        // VoiceTestView doesn't use waveform animation currently
+    }
+
     internal func logMessage(_ type: MessageType, _ direction: MessageDirection, _ title: String, _ details: String) {
         let message = DebugMessage(
             timestamp: Date(),

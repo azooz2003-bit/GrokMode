@@ -11,13 +11,10 @@ import JSONSchema
 struct XToolIntegration {
     
     // Tools allowed for the CEO Demo scenario
-    static let demoTools: [XTool] = [
-        .searchRecentTweets,
-        .createTweet, // For quoting/replying
-        .getUserByUsername,
-        .createLinearTicket // Now a first-class tool
-    ]
-    
+    static var demoTools: [XTool] {
+        XTool.supportedTools
+    }
+
     static func getToolDefinitions() -> [VoiceMessage.ToolDefinition] {
         var definitions: [VoiceMessage.ToolDefinition] = []
         

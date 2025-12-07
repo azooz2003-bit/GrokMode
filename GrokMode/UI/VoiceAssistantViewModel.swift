@@ -35,6 +35,7 @@ struct ConversationItem: Identifiable {
 // MARK: - Voice Assistant ViewModel
 
 @Observable
+@MainActor
 class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
     // MARK: - State Properties
 
@@ -50,6 +51,7 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
     // Audio
     var isListening = false
     var isGeraldSpeaking = false
+    var currentAudioLevel: Float = 0.0
 
     // Conversation
     var conversationItems: [ConversationItem] = []
@@ -148,9 +150,9 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
         // Initialize XAI service
         xaiService = XAIVoiceService(apiKey: Config.xAiApiKey, sessionState: sessionState)
 
-        // Set up callbacks
+        // Set up callbacks (already on main actor)
         xaiService?.onConnected = { [weak self] in
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 self?.isConnected = true
                 self?.isConnecting = false
                 self?.addSystemMessage("Connected to XAI Voice")
@@ -158,13 +160,13 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
         }
 
         xaiService?.onMessageReceived = { [weak self] message in
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 self?.handleXAIMessage(message)
             }
         }
 
         xaiService?.onError = { [weak self] error in
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 print("🔴 XAI Error: \(error.localizedDescription)")
 
                 // Stop audio streaming immediately to prevent cascade of errors
@@ -180,46 +182,45 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
         // Start connection
         Task {
             do {
-                // Pre-fetch tweets for context (with media fields and metrics)
-                let toolOrchestrator = XToolOrchestrator()
-
+                // Execute tweet pre-fetch and XAI connection in parallel
                 print("🔍 ===== TWEET API REQUEST =====")
                 print("🔍 Query: \(scenarioTopic)")
-                print("🔍 Requesting fields:")
-                print("🔍   - expansions: attachments.media_keys,author_id")
-                print("🔍   - media.fields: url,preview_image_url,type,width,height")
-                print("🔍   - tweet.fields: public_metrics,created_at")
-                print("🔍   - user.fields: name,username,profile_image_url")
 
-                let searchResult = await toolOrchestrator.executeTool(
-                    .searchRecentTweets,
-                    parameters: [
-                        "query": scenarioTopic,
-                        "max_results": 10,
-                        "expansions": "attachments.media_keys,author_id",
-                        "media.fields": "url,preview_image_url,type,width,height",
-                        "tweet.fields": "public_metrics,created_at",
-                        "user.fields": "name,username,profile_image_url"
-                    ]
-                )
+                async let searchResult = {
+                    let toolOrchestrator = XToolOrchestrator()
+                    return await toolOrchestrator.executeTool(
+                        .searchRecentTweets,
+                        parameters: [
+                            "query": scenarioTopic,
+                            "max_results": 10,
+                            "expansions": "attachments.media_keys,author_id",
+                            "media.fields": "url,preview_image_url,type,width,height",
+                            "tweet.fields": "public_metrics,created_at",
+                            "user.fields": "name,username,profile_image_url"
+                        ]
+                    )
+                }()
+
+                // Connect to XAI in parallel with tweet fetch
+                async let xaiConnection = xaiService!.connect()
+
+                // Wait for both to complete
+                let (tweets, _) = try await (searchResult, xaiConnection)
 
                 print("🔍 ===== TWEET API RESPONSE =====")
-                print("🔍 Success: \(searchResult.success)")
-                if let response = searchResult.response {
+                print("🔍 Success: \(tweets.success)")
+                if let response = tweets.response {
                     print("🔍 Response length: \(response.count) characters")
                 }
 
                 var contextString = ""
-                if searchResult.success, let response = searchResult.response {
+                if tweets.success, let response = tweets.response {
                     contextString = response
                 } else {
                     contextString = "No recent tweets found."
                 }
 
-                // Connect to XAI
-                try await xaiService!.connect()
-
-                // Configure session with tools
+                // Configure session with tools (must be after connection)
                 let tools = XToolIntegration.getToolDefinitions()
                 try xaiService!.configureSession(tools: tools)
 
@@ -260,17 +261,13 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
                 )
                 try xaiService!.sendMessage(contextMessage)
 
-                await MainActor.run {
-                    addSystemMessage("Session configured and ready")
-                }
+                addSystemMessage("Session configured and ready")
 
             } catch {
-                await MainActor.run {
-                    self.isConnecting = false
-                    self.isConnected = false
-                    self.connectionError = error.localizedDescription
-                    self.addSystemMessage("Connection failed: \(error.localizedDescription)")
-                }
+                self.isConnecting = false
+                self.isConnected = false
+                self.connectionError = error.localizedDescription
+                self.addSystemMessage("Connection failed: \(error.localizedDescription)")
             }
         }
     }
@@ -316,35 +313,44 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
     func stopListening() {
         audioStreamer.stopStreaming()
         isListening = false
+        currentAudioLevel = 0.0  // Reset waveform to baseline
     }
 
     // MARK: - AudioStreamerDelegate
 
-    func audioStreamerDidReceiveAudioData(_ data: Data) {
-        // Only send audio if we're connected
-        guard isConnected else {
-            stopListening()
-            return
-        }
+    nonisolated func audioStreamerDidReceiveAudioData(_ data: Data) {
+        Task { @MainActor in
+            // Only send audio if we're connected
+            guard isConnected else {
+                stopListening()
+                return
+            }
 
-        do {
-            try xaiService?.sendAudioChunk(data)
-        } catch {
-            print("❌ Failed to send audio chunk: \(error)")
-            // Stop streaming to prevent error cascade
-            stopListening()
+            do {
+                try xaiService?.sendAudioChunk(data)
+            } catch {
+                print("❌ Failed to send audio chunk: \(error)")
+                // Stop streaming to prevent error cascade
+                stopListening()
+            }
         }
     }
 
-    func audioStreamerDidDetectSpeechStart() {
-        DispatchQueue.main.async {
+    nonisolated func audioStreamerDidDetectSpeechStart() {
+        Task { @MainActor in
             // Speech detection handled automatically
         }
     }
 
-    func audioStreamerDidDetectSpeechEnd() {
-        DispatchQueue.main.async {
+    nonisolated func audioStreamerDidDetectSpeechEnd() {
+        Task { @MainActor in
             try? self.xaiService?.commitAudioBuffer()
+        }
+    }
+
+    nonisolated func audioStreamerDidUpdateAudioLevel(_ level: Float) {
+        Task { @MainActor in
+            self.currentAudioLevel = level
         }
     }
 
@@ -551,10 +557,8 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
                 try? xaiService?.sendToolOutput(toolCallId: toolCall.id, output: outputString, success: isSuccess)
                 try? xaiService?.createResponse()
 
-                await MainActor.run {
-                    addConversationItem(.toolCall(name: toolCall.function.name, status: .executed(success: isSuccess)))
-                    pendingToolCall = nil
-                }
+                addConversationItem(.toolCall(name: toolCall.function.name, status: .executed(success: isSuccess)))
+                pendingToolCall = nil
 
             } else if let tool = XTool(rawValue: toolCall.function.name) {
                 // Handle X API tools through orchestrator
@@ -566,9 +570,7 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
                     isSuccess = true
 
                     // Parse and display tweets if applicable
-                    await MainActor.run {
-                        parseTweetsFromResponse(response, toolName: tool.rawValue)
-                    }
+                    await parseTweetsFromResponse(response, toolName: tool.rawValue)
                 } else {
                     outputString = result.error?.message ?? "Unknown error"
                     isSuccess = false
@@ -584,10 +586,8 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
                 // Trigger response creation
                 try? xaiService?.createResponse()
 
-                await MainActor.run {
-                    addConversationItem(.toolCall(name: toolCall.function.name, status: .executed(success: isSuccess)))
-                    pendingToolCall = nil
-                }
+                addConversationItem(.toolCall(name: toolCall.function.name, status: .executed(success: isSuccess)))
+                pendingToolCall = nil
             }
         }
     }
@@ -639,6 +639,7 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
                 print("📦 Total media in includes: \(tweetResponse.includes?.media?.count ?? 0)")
 
                 if let tweets = tweetResponse.data {
+                    // Process tweets synchronously - simple array lookups are fast
                     for (index, tweet) in tweets.enumerated() {
                         print("\n📊 ===== TWEET #\(index + 1) =====")
                         print("📊 ID: \(tweet.id)")
@@ -689,7 +690,7 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
                         print("📊 Total Media URLs: \(mediaUrls.count)")
 
                         addConversationItem(.tweet(tweet, author: author, mediaUrls: mediaUrls))
-                        print("📊 ✓ Tweet added to conversation")
+                        print("📊 ✓ Tweet #\(index + 1) added to conversation")
                     }
                 }
                 print("\n📦 ===== PARSING COMPLETE =====\n")

@@ -138,19 +138,55 @@ class XToolOrchestrator {
             path = "/2/tweets/search/recent"
             method = .get
 
-            // ALWAYS include these fields for complete tweet data
+            // ALWAYS include ALL available fields for complete tweet data
             var enrichedParams = parameters
-            enrichedParams["expansions"] = "attachments.media_keys,author_id"
-            enrichedParams["tweet.fields"] = "public_metrics,created_at,attachments"
-            enrichedParams["user.fields"] = "name,username,profile_image_url"
-            enrichedParams["media.fields"] = "url,preview_image_url,type,width,height"
+
+            // All expansions
+            enrichedParams["expansions"] = "attachments.poll_ids,attachments.media_keys,author_id,edit_history_tweet_ids,entities.mentions.username,geo.place_id,in_reply_to_user_id,referenced_tweets.id,referenced_tweets.id.author_id"
+
+            // All tweet fields
+            enrichedParams["tweet.fields"] = "attachments,author_id,context_annotations,conversation_id,created_at,edit_controls,entities,geo,id,in_reply_to_user_id,lang,public_metrics,possibly_sensitive,referenced_tweets,reply_settings,source,text,withheld"
+
+            // All user fields
+            enrichedParams["user.fields"] = "created_at,description,entities,id,location,name,pinned_tweet_id,profile_image_url,protected,public_metrics,url,username,verified,verified_type,withheld"
+
+            // All media fields
+            enrichedParams["media.fields"] = "duration_ms,height,media_key,preview_image_url,type,url,width,public_metrics,alt_text,variants"
+
+            // Poll fields
+            enrichedParams["poll.fields"] = "duration_minutes,end_datetime,id,options,voting_status"
+
+            // Place fields
+            enrichedParams["place.fields"] = "contained_within,country,country_code,full_name,geo,id,name,place_type"
 
             queryItems = buildQueryItems(from: enrichedParams)
 
         case .searchAllTweets:
             path = "/2/tweets/search/all"
             method = .get
-            queryItems = buildQueryItems(from: parameters)
+
+            // ALWAYS include ALL available fields for complete tweet data
+            var enrichedParams = parameters
+
+            // All expansions
+            enrichedParams["expansions"] = "attachments.poll_ids,attachments.media_keys,author_id,edit_history_tweet_ids,entities.mentions.username,geo.place_id,in_reply_to_user_id,referenced_tweets.id,referenced_tweets.id.author_id"
+
+            // All tweet fields
+            enrichedParams["tweet.fields"] = "attachments,author_id,context_annotations,conversation_id,created_at,edit_controls,entities,geo,id,in_reply_to_user_id,lang,public_metrics,possibly_sensitive,referenced_tweets,reply_settings,source,text,withheld"
+
+            // All user fields
+            enrichedParams["user.fields"] = "created_at,description,entities,id,location,name,pinned_tweet_id,profile_image_url,protected,public_metrics,url,username,verified,verified_type,withheld"
+
+            // All media fields
+            enrichedParams["media.fields"] = "duration_ms,height,media_key,preview_image_url,type,url,width,public_metrics,alt_text,variants"
+
+            // Poll fields
+            enrichedParams["poll.fields"] = "duration_minutes,end_datetime,id,options,voting_status"
+
+            // Place fields
+            enrichedParams["place.fields"] = "contained_within,country,country_code,full_name,geo,id,name,place_type"
+
+            queryItems = buildQueryItems(from: enrichedParams)
 
         case .getRecentTweetCounts:
             path = "/2/tweets/counts/recent"

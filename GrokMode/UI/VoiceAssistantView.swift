@@ -65,8 +65,6 @@ struct VoiceAssistantView: View {
                                 withAnimation {
                                     viewModel.startListening()
                                 }
-                                isAnimating = true
-                                animator.startAnimating()
                             }
                         } label: {
                             AnimatedWaveformView(animator: animator, barCount: 5, accentColor: .background, isAnimating: isAnimating)
@@ -121,6 +119,15 @@ struct VoiceAssistantView: View {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                         viewModel.connect()
                     }
+                }
+            }
+            .onChange(of: viewModel.currentAudioLevel) { oldValue, newValue in
+                // Update waveform based on real audio level
+                animator.updateAudioLevel(CGFloat(newValue))
+
+                // Update animation state based on audio activity
+                withAnimation {
+                    isAnimating = newValue > 0.1 // Consider animating if level is above threshold
                 }
             }
         }
@@ -226,8 +233,6 @@ struct VoiceAssistantView: View {
             withAnimation {
                 viewModel.stopListening()
             }
-            isAnimating = false
-            animator.stopAnimating()
         } label: {
             Image(systemName: "stop.fill")
                 .foregroundStyle(.white)
