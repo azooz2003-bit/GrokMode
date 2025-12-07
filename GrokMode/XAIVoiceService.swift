@@ -208,14 +208,12 @@ class XAIVoiceService {
     func connect() async throws {
         print("🔌 Connecting to XAI Voice API...")
 
-        // Get ephemeral token first
+        // Get ephemeral token first (like web client examples)
         let token = try await getEphemeralToken()
 
         // Create WebSocket task with protocol headers
         var request = URLRequest(url: websocketURL)
-        request.setValue("realtime", forHTTPHeaderField: "Sec-WebSocket-Protocol")
-        request.setValue("openai-insecure-api-key.\(token.value)", forHTTPHeaderField: "Sec-WebSocket-Protocol")
-        request.setValue("openai-beta.realtime-v1", forHTTPHeaderField: "Sec-WebSocket-Protocol")
+        request.setValue("realtime,openai-insecure-api-key.\(token.value),openai-beta.realtime-v1", forHTTPHeaderField: "Sec-WebSocket-Protocol")
 
         webSocketTask = urlSession.webSocketTask(with: request)
         webSocketTask?.resume()
@@ -360,7 +358,10 @@ class XAIVoiceService {
             let message = try JSONDecoder().decode(VoiceMessage.self, from: Data(text.utf8))
             print("📨 Received message: \(message.type)")
 
-            // Handle specific message types
+            // Always call the message callback first
+            onMessageReceived?(message)
+
+            // Then handle specific message types
             switch message.type {
             case "conversation.created":
                 print("💬 Conversation created, configuring session...")
@@ -371,7 +372,7 @@ class XAIVoiceService {
                 onConnected?()
 
             default:
-                onMessageReceived?(message)
+                break
             }
 
         } catch {
