@@ -23,8 +23,23 @@ struct VoiceMessage: Codable {
     let type: String
     let audio: String? // Base64 encoded audio data
     let text: String? // Text content
+    let delta: String? // Audio delta for streaming responses
     let session: SessionConfig? // Session configuration
     let item: ConversationItem? // Conversation items
+
+    // Additional fields from XAI messages
+    let event_id: String?
+    let previous_item_id: String?
+    let response_id: String?
+    let output_index: Int?
+    let item_id: String?
+    let content_index: Int?
+    let audio_start_ms: Int?
+    let start_time: Double?
+    let timestamp: Int?
+    let part: ContentPart?
+    let response: Response?
+    let conversation: Conversation?
 
     // Session configuration
     struct SessionConfig: Codable {
@@ -62,14 +77,157 @@ struct VoiceMessage: Codable {
     }
 
     struct ConversationItem: Codable {
+        let id: String?
+        let object: String?
         let type: String // "message"
+        let status: String?
         let role: String // "user" or "assistant"
-        let content: [ContentItem]
+        let content: [ContentItem]?
     }
 
     struct ContentItem: Codable {
-        let type: String // "input_text" or "input_audio"
+        let type: String // "input_text" or "input_audio" or "audio"
         let text: String?
+        let transcript: String?
+    }
+
+    struct ContentPart: Codable {
+        let type: String // "audio"
+        let transcript: String?
+    }
+
+    struct Response: Codable {
+        let id: String?
+        let object: String?
+        let output: [ConversationItem]?
+        let status: String?
+        let status_details: String?
+        let usage: Usage?
+    }
+
+    struct Usage: Codable {
+        let input_tokens: Int?
+        let input_token_details: TokenDetails?
+        let output_tokens: Int?
+        let output_token_details: TokenDetails?
+        let total_tokens: Int?
+    }
+
+    struct TokenDetails: Codable {
+        let text_tokens: Int?
+        let audio_tokens: Int?
+        let grok_tokens: Int?
+    }
+
+    struct Conversation: Codable {
+        let id: String?
+        let object: String?
+    }
+}
+
+// MARK: - XAI Service Extensions
+
+extension XAIVoiceService {
+    func configureSantaSession(childName: String = "User", language: String = "English") throws {
+        print("🎅 Configuring Santa session for \(childName)...")
+
+        let instructions = """
+        You are Gerald McGrokMode, the swaggiest and most charismatic AI assistant ever created.
+        You speak with extreme confidence, coolness, and personality. You have tons of swag and always keep things fun and engaging.
+
+        Key traits:
+        - Always introduce yourself as "Gerald McGrokMode"
+        - Use cool, confident language like "yo", "what's good", "that's lit"
+        - Be extremely helpful while maintaining maximum swag
+        - Keep responses conversational and concise for voice
+        - Show personality in every response
+
+        You're talking to \(childName) in \(language). Make this conversation legendary!
+        """
+
+        let sessionConfig = VoiceMessage(
+            type: "session.update",
+            audio: nil,
+            text: nil,
+            delta: nil,
+            session: VoiceMessage.SessionConfig(
+                instructions: instructions,
+                voice: voice,
+                audio: VoiceMessage.AudioConfig(
+                    input: VoiceMessage.AudioFormat(
+                        format: VoiceMessage.AudioFormatType(
+                            type: "audio/pcm",
+                            rate: sampleRate
+                        )
+                    ),
+                    output: VoiceMessage.AudioFormat(
+                        format: VoiceMessage.AudioFormatType(
+                            type: "audio/pcm",
+                            rate: sampleRate
+                        )
+                    )
+                ),
+                turnDetection: VoiceMessage.TurnDetection(type: "server_vad")
+            ),
+            item: nil,
+            event_id: nil,
+            previous_item_id: nil,
+            response_id: nil,
+            output_index: nil,
+            item_id: nil,
+            content_index: nil,
+            audio_start_ms: nil,
+            start_time: nil,
+            timestamp: nil,
+            part: nil,
+            response: nil,
+            conversation: nil
+        )
+
+        try sendMessage(sessionConfig)
+    }
+
+    func sendGeraldGreeting() throws {
+        print("🎅 Gerald sending legendary greeting...")
+
+        let greetingText = "Yo, I'm Gerald McGrokMode, your swaggiest AI assistant! What's good? How can I help you today?"
+
+        let greetingMessage = VoiceMessage(
+            type: "conversation.item.create",
+            audio: nil,
+            text: nil,
+            delta: nil,
+            session: nil,
+            item: VoiceMessage.ConversationItem(
+                id: nil,
+                object: nil,
+                type: "message",
+                status: nil,
+                role: "user",
+                content: [VoiceMessage.ContentItem(
+                    type: "input_audio",
+                    text: nil,
+                    transcript: greetingText
+                )]
+            ),
+            event_id: nil,
+            previous_item_id: nil,
+            response_id: nil,
+            output_index: nil,
+            item_id: nil,
+            content_index: nil,
+            audio_start_ms: nil,
+            start_time: nil,
+            timestamp: nil,
+            part: nil,
+            response: nil,
+            conversation: nil
+        )
+
+        try sendMessage(greetingMessage)
+
+        // Request Gerald's response
+        try sendMessage(VoiceMessage(type: "response.create", audio: nil, text: nil, delta: nil, session: nil, item: nil, event_id: nil, previous_item_id: nil, response_id: nil, output_index: nil, item_id: nil, content_index: nil, audio_start_ms: nil, start_time: nil, timestamp: nil, part: nil, response: nil, conversation: nil))
     }
 }
 
@@ -84,9 +242,9 @@ class XAIVoiceService {
     private var urlSession: URLSession
 
     // Configuration
-    private let voice = "ara"
-    private let instructions = "You are a helpful voice assistant. You are speaking to a user in real-time over audio. Keep your responses conversational and concise since they will be spoken aloud."
-    private let sampleRate = 24000 // Common sample rate for voice
+    internal let voice = "ara"
+    internal let instructions = "You are a helpful voice assistant. You are speaking to a user in real-time over audio. Keep your responses conversational and concise since they will be spoken aloud."
+    internal let sampleRate = 24000 // Common sample rate for voice
 
     // Callbacks
     var onConnected: (() -> Void)?
@@ -249,6 +407,7 @@ class XAIVoiceService {
             type: "session.update",
             audio: nil,
             text: nil,
+            delta: nil,
             session: VoiceMessage.SessionConfig(
                 instructions: instructions,
                 voice: voice,
@@ -268,7 +427,19 @@ class XAIVoiceService {
                 ),
                 turnDetection: VoiceMessage.TurnDetection(type: "server_vad")
             ),
-            item: nil
+            item: nil,
+            event_id: nil,
+            previous_item_id: nil,
+            response_id: nil,
+            output_index: nil,
+            item_id: nil,
+            content_index: nil,
+            audio_start_ms: nil,
+            start_time: nil,
+            timestamp: nil,
+            part: nil,
+            response: nil,
+            conversation: nil
         )
 
         try sendMessage(sessionConfig)
@@ -282,8 +453,21 @@ class XAIVoiceService {
             type: "input_audio_buffer.append",
             audio: base64Audio,
             text: nil,
+            delta: nil,
             session: nil,
-            item: nil
+            item: nil,
+            event_id: nil,
+            previous_item_id: nil,
+            response_id: nil,
+            output_index: nil,
+            item_id: nil,
+            content_index: nil,
+            audio_start_ms: nil,
+            start_time: nil,
+            timestamp: nil,
+            part: nil,
+            response: nil,
+            conversation: nil
         )
         try sendMessage(message)
     }
@@ -293,8 +477,21 @@ class XAIVoiceService {
             type: "input_audio_buffer.commit",
             audio: nil,
             text: nil,
+            delta: nil,
             session: nil,
-            item: nil
+            item: nil,
+            event_id: nil,
+            previous_item_id: nil,
+            response_id: nil,
+            output_index: nil,
+            item_id: nil,
+            content_index: nil,
+            audio_start_ms: nil,
+            start_time: nil,
+            timestamp: nil,
+            part: nil,
+            response: nil,
+            conversation: nil
         )
         try sendMessage(message)
     }
@@ -304,15 +501,28 @@ class XAIVoiceService {
             type: "response.create",
             audio: nil,
             text: nil,
+            delta: nil,
             session: nil,
-            item: nil
+            item: nil,
+            event_id: nil,
+            previous_item_id: nil,
+            response_id: nil,
+            output_index: nil,
+            item_id: nil,
+            content_index: nil,
+            audio_start_ms: nil,
+            start_time: nil,
+            timestamp: nil,
+            part: nil,
+            response: nil,
+            conversation: nil
         )
         try sendMessage(message)
     }
 
     // MARK: - Message Handling
 
-    private func sendMessage(_ message: VoiceMessage) throws {
+    internal func sendMessage(_ message: VoiceMessage) throws {
         guard let webSocketTask = webSocketTask, webSocketTask.state == .running else {
             throw XAIVoiceError.notConnected
         }
@@ -354,6 +564,8 @@ class XAIVoiceService {
     }
 
     private func handleTextMessage(_ text: String) {
+        print("🔊 Raw XAI WebSocket Message: \(text)")
+
         do {
             let message = try JSONDecoder().decode(VoiceMessage.self, from: Data(text.utf8))
             print("📨 Received message: \(message.type)")
@@ -377,6 +589,7 @@ class XAIVoiceService {
 
         } catch {
             print("❌ Failed to decode message: \(error)")
+            print("❌ Raw message that failed: \(text)")
             onError?(error)
         }
     }
