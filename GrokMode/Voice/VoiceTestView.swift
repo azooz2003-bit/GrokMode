@@ -12,7 +12,7 @@ import Combine
 // MARK: - Main View
 
 struct VoiceTestView: View {
-    @StateObject private var viewModel = VoiceTestViewModel()
+    @State private var viewModel = VoiceTestViewModel()
     
     var body: some View {
         NavigationView {
@@ -45,7 +45,7 @@ struct VoiceTestView: View {
 // MARK: - Subviews
 
 struct PermissionStatusView: View {
-    @ObservedObject var viewModel: VoiceTestViewModel
+    @Bindable var viewModel: VoiceTestViewModel
     
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -72,7 +72,7 @@ struct PermissionStatusView: View {
 }
 
 struct ConnectionStatusView: View {
-    @ObservedObject var viewModel: VoiceTestViewModel
+    @Bindable var viewModel: VoiceTestViewModel
     
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -156,7 +156,7 @@ struct ConnectionStatusView: View {
 }
 
 struct MessageLogView: View {
-    @ObservedObject var viewModel: VoiceTestViewModel
+    @Bindable var viewModel: VoiceTestViewModel
     
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -196,7 +196,7 @@ struct MessageLogView: View {
 }
 
 struct ToolConfirmationOverlay: View {
-    @ObservedObject var viewModel: VoiceTestViewModel
+    @Bindable var viewModel: VoiceTestViewModel
     
     var body: some View {
         Group {
@@ -356,28 +356,29 @@ struct PendingToolCall {
 
 // MARK: - ViewModel
 
-class VoiceTestViewModel: NSObject, ObservableObject, AudioStreamerDelegate {
+@Observable
+class VoiceTestViewModel: NSObject, AudioStreamerDelegate {
     // Permissions
-    @Published var micPermissionGranted = false
-    @Published var micPermissionStatus = "Checking..."
+    var micPermissionGranted = false
+    var micPermissionStatus = "Checking..."
 
     // Connection
-    @Published var connectionState: ConnectionState = .disconnected
-    @Published var isConnecting = false
-    @Published var sessionConfigured = false
-    @Published var lastActivity: Date?
-    @Published var isAudioStreaming = false
+    var connectionState: ConnectionState = .disconnected
+    var isConnecting = false
+    var sessionConfigured = false
+    var lastActivity: Date?
+    var isAudioStreaming = false
 
 
     // Audio streaming
-    @Published var isGeraldSpeaking = false
-    @Published var messageLog: [DebugMessage] = []
+    var isGeraldSpeaking = false
+    var messageLog: [DebugMessage] = []
     
     // Scenario Configuration
-    @Published var scenarioTopic: String = "Grok bug"
+    var scenarioTopic: String = "Grok bug"
     
     // Tool Confirmation
-    @Published var pendingToolCall: PendingToolCall?
+    var pendingToolCall: PendingToolCall?
 
 
     // XAI Service
