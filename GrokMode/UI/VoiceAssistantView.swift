@@ -55,41 +55,60 @@ struct VoiceAssistantView: View {
                   }
               }
             .toolbar {
-                if viewModel.isConnected {
-                    if !viewModel.isListening {
-                        ToolbarItem(placement:.bottomBar) {
-                            Button {
+                if !viewModel.isListening {
+                    ToolbarItem(placement:.bottomBar) {
+                        Button {
+                            // Reconnect if needed, then start listening
+                            if !viewModel.isConnected {
+                                viewModel.reconnect()
+                            } else {
                                 withAnimation {
                                     viewModel.startListening()
-                                    isAnimating = true
-                                    animator.startAnimating()
                                 }
-                            } label: {
-                                AnimatedWaveformView(animator: animator, barCount: 5, accentColor: .background, isAnimating: isAnimating)
-                                    .frame(height: 40)
+                                isAnimating = true
+                                animator.startAnimating()
                             }
-                            .buttonStyle(.glassProminent)
-                            .tint(.white)
+                        } label: {
+                            AnimatedWaveformView(animator: animator, barCount: 5, accentColor: .background, isAnimating: isAnimating)
+                                .frame(height: 40)
                         }
-                    } else {
+                        .buttonStyle(.glassProminent)
+                        .tint(.white)
+                        .disabled(!viewModel.isConnected && !viewModel.isConnecting)
+                        .opacity(viewModel.isConnected ? 1.0 : 0.5)
+                    }
+                } else {
+                    ToolbarItem(placement:.bottomBar) {
+                        Button {} label: {
+                            AnimatedWaveformView(animator: animator, barCount: 37, accentColor: .background , isAnimating: isAnimating)
+                                .frame(maxWidth: .infinity, maxHeight: 40)
+                        }
+                        .buttonStyle(.glassProminent)
+                        .tint(.white)
+                    }
+
+                    if viewModel.isListening {
+                        ToolbarSpacer(.fixed, placement: .bottomBar)
+                        DefaultToolbarItem(kind: .search, placement: .bottomBar)
+                        ToolbarSpacer(.fixed, placement: .bottomBar)
+
                         ToolbarItem(placement:.bottomBar) {
-                            Button {} label: {
-                                AnimatedWaveformView(animator: animator, barCount: 37, accentColor: .background , isAnimating: isAnimating)
-                                    .frame(maxWidth: .infinity, maxHeight: 40)
-                            }
-                            .buttonStyle(.glassProminent)
-                            .tint(.white)
+                            stopButton
                         }
+                    }
+                }
 
-                        if viewModel.isListening {
-                            ToolbarSpacer(.fixed, placement: .bottomBar)
-                            DefaultToolbarItem(kind: .search, placement: .bottomBar)
-                            ToolbarSpacer(.fixed, placement: .bottomBar)
-
-                            ToolbarItem(placement:.bottomBar) {
-                                stopButton
-                            }
+                // Add reconnect button when disconnected
+                if !viewModel.isConnected && !viewModel.isConnecting {
+                    ToolbarItem(placement: .bottomBar) {
+                        Button {
+                            viewModel.reconnect()
+                        } label: {
+                            Label("Reconnect", systemImage: "arrow.clockwise")
+                                .font(.caption)
                         }
+                        .buttonStyle(.bordered)
+                        .tint(.blue)
                     }
                 }
             }
@@ -206,9 +225,9 @@ struct VoiceAssistantView: View {
         Button {
             withAnimation {
                 viewModel.stopListening()
-                isAnimating = false
-                animator.stopAnimating()
             }
+            isAnimating = false
+            animator.stopAnimating()
         } label: {
             Image(systemName: "stop.fill")
                 .foregroundStyle(.white)

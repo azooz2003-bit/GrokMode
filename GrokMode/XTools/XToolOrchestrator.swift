@@ -140,18 +140,10 @@ class XToolOrchestrator {
 
             // ALWAYS include these fields for complete tweet data
             var enrichedParams = parameters
-            if enrichedParams["expansions"] == nil {
-                enrichedParams["expansions"] = "attachments.media_keys,author_id"
-            }
-            if enrichedParams["tweet.fields"] == nil {
-                enrichedParams["tweet.fields"] = "public_metrics,created_at,attachments"
-            }
-            if enrichedParams["user.fields"] == nil {
-                enrichedParams["user.fields"] = "name,username,profile_image_url"
-            }
-            if enrichedParams["media.fields"] == nil {
-                enrichedParams["media.fields"] = "url,preview_image_url,type,width,height"
-            }
+            enrichedParams["expansions"] = "attachments.media_keys,author_id"
+            enrichedParams["tweet.fields"] = "public_metrics,created_at,attachments"
+            enrichedParams["user.fields"] = "name,username,profile_image_url"
+            enrichedParams["media.fields"] = "url,preview_image_url,type,width,height"
 
             queryItems = buildQueryItems(from: enrichedParams)
 

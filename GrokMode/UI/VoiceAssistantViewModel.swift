@@ -165,6 +165,11 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
 
         xaiService?.onError = { [weak self] error in
             DispatchQueue.main.async {
+                print("🔴 XAI Error: \(error.localizedDescription)")
+
+                // Stop audio streaming immediately to prevent cascade of errors
+                self?.stopListening()
+
                 self?.isConnecting = false
                 self?.isConnected = false
                 self?.connectionError = error.localizedDescription
@@ -281,6 +286,24 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
         addSystemMessage("Disconnected")
     }
 
+    func reconnect() {
+        print("🔄 Reconnecting...")
+
+        // Stop any existing streams
+        audioStreamer.stopStreaming()
+        isListening = false
+        isGeraldSpeaking = false
+
+        // Disconnect existing service
+        xaiService?.disconnect()
+
+        // Clear error state
+        connectionError = nil
+
+        // Reconnect
+        connect()
+    }
+
     // MARK: - Audio Streaming
 
     func startListening() {
@@ -298,10 +321,18 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
     // MARK: - AudioStreamerDelegate
 
     func audioStreamerDidReceiveAudioData(_ data: Data) {
+        // Only send audio if we're connected
+        guard isConnected else {
+            stopListening()
+            return
+        }
+
         do {
             try xaiService?.sendAudioChunk(data)
         } catch {
-            print("Failed to send audio chunk: \(error)")
+            print("❌ Failed to send audio chunk: \(error)")
+            // Stop streaming to prevent error cascade
+            stopListening()
         }
     }
 
@@ -569,6 +600,14 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
     }
 
     private func addSystemMessage(_ message: String) {
+        // Prevent consecutive duplicate system messages (especially errors)
+        if let lastItem = conversationItems.last,
+           case .systemMessage(let lastMessage) = lastItem.type,
+           lastMessage == message {
+            print("⚠️ Skipping duplicate system message: \(message)")
+            return
+        }
+
         addConversationItem(.systemMessage(message))
     }
 
