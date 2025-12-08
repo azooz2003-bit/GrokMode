@@ -2,14 +2,14 @@
 //  LoginView.swift
 //  GrokMode
 //
-//  Created by GrokMode Agent on 12/7/25.
+//  Created by Matt Steele on 12/7/25.
 //
 
 import SwiftUI
 
 struct LoginView: View {
-    @ObservedObject private var authService = XAuthService.shared
-    
+    @Bindable var authService: XAuthService
+
     var body: some View {
         VStack(spacing: 30) {
             Spacer()
@@ -92,5 +92,5 @@ struct LoginView: View {
 }
 
 #Preview {
-    LoginView()
+    LoginView(authService: XAuthService())
 }

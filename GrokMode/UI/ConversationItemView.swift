@@ -2,7 +2,7 @@
 //  ConversationItemView.swift
 //  GrokMode
 //
-//  Created by Claude Code on 12/7/25.
+//  Created by Abdulaziz Albahar on 12/7/25.
 //
 
 import SwiftUI

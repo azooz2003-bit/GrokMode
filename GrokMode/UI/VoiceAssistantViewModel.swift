@@ -2,14 +2,12 @@
 //  VoiceAssistantViewModel.swift
 //  GrokMode
 //
-//  Created by Claude Code on 12/7/25.
+//  Created by Abdulaziz Albahar on 12/7/25.
 //
 
 import SwiftUI
 import AVFoundation
 import Combine
-
-// MARK: - Conversation Item Models
 
 enum ConversationItemType {
     case userSpeech(transcript: String)
@@ -32,13 +30,9 @@ struct ConversationItem: Identifiable {
     let type: ConversationItemType
 }
 
-// MARK: - Voice Assistant ViewModel
-
 @Observable
 @MainActor
 class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
-    // MARK: - State Properties
-
     // Permissions
     var micPermissionGranted = false
     var micPermissionStatus = "Checking..."
@@ -69,6 +63,7 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
     private var audioStreamer: AudioStreamer!
     private var sessionState = SessionState()
     private var authCancellable: AnyCancellable?
+    private let authService: XAuthService
 
     // Truncation tracking
     private var currentItemId: String?
@@ -77,9 +72,8 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
     // Configuration
     private let scenarioTopic = "Grok"
 
-    // MARK: - Initialization
-
-    override init() {
+    init(authService: XAuthService) {
+        self.authService = authService
         super.init()
 
         audioStreamer = AudioStreamer()
@@ -89,17 +83,16 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
         checkPermissions()
     }
 
-    // MARK: - Setup
-
     private func setupAuthObservation() {
-        isXAuthenticated = XAuthService.shared.isAuthenticated
-        xUserHandle = XAuthService.shared.currentUserHandle
+        isXAuthenticated = authService.isAuthenticated
+        xUserHandle = authService.currentUserHandle
 
-        authCancellable = XAuthService.shared.$isAuthenticated
+        authCancellable = authService.publisher(for: \.isAuthenticated)
             .receive(on: RunLoop.main)
             .sink { [weak self] isAuthenticated in
-                self?.isXAuthenticated = isAuthenticated
-                self?.xUserHandle = XAuthService.shared.currentUserHandle
+                guard let self = self else { return }
+                self.isXAuthenticated = isAuthenticated
+                self.xUserHandle = self.authService.currentUserHandle
             }
     }
 
@@ -187,7 +180,7 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
                 print("🔍 Query: \(scenarioTopic)")
 
                 async let searchResult = {
-                    let toolOrchestrator = XToolOrchestrator()
+                    let toolOrchestrator = XToolOrchestrator(authService: authService)
                     return await toolOrchestrator.executeTool(
                         .searchRecentTweets,
                         parameters: [
@@ -562,7 +555,7 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
 
             } else if let tool = XTool(rawValue: toolCall.function.name) {
                 // Handle X API tools through orchestrator
-                let orchestrator = XToolOrchestrator()
+                let orchestrator = XToolOrchestrator(authService: authService)
                 let result = await orchestrator.executeTool(tool, parameters: parameters, id: toolCall.id)
 
                 if result.success, let response = result.response {
@@ -639,7 +632,6 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
                 print("📦 Total media in includes: \(tweetResponse.includes?.media?.count ?? 0)")
 
                 if let tweets = tweetResponse.data {
-                    // Process tweets synchronously - simple array lookups are fast
                     for (index, tweet) in tweets.enumerated() {
                         print("\n📊 ===== TWEET #\(index + 1) =====")
                         print("📊 ID: \(tweet.id)")
@@ -703,10 +695,10 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
     // MARK: - X Auth
 
     func loginWithX() {
-        XAuthService.shared.login()
+        authService.login()
     }
 
     func logoutX() {
-        XAuthService.shared.logout()
+        authService.logout()
     }
 }

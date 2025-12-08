@@ -13,6 +13,11 @@ enum HTTPMethod: String {
 
 class XToolOrchestrator {
     private var baseURL: String { Config.baseXURL }
+    private let authService: XAuthService
+
+    init(authService: XAuthService) {
+        self.authService = authService
+    }
 
     // MARK: - Authentication
 
@@ -22,7 +27,7 @@ class XToolOrchestrator {
     private func getBearerToken(for tool: XTool) async throws -> String {
         if requiresUserContext(tool) {
             // Use user OAuth token for endpoints that require user context
-            guard let userToken = await XAuthService.shared.getValidAccessToken() else {
+            guard let userToken = await authService.getValidAccessToken() else {
                 throw XToolCallError(
                     code: "AUTH_REQUIRED",
                     message: "This action requires user authentication. Please log in to your X/Twitter account."
@@ -187,7 +192,7 @@ class XToolOrchestrator {
                 // Force logout and return clear error
                 print("TOOL CALL: 401 Unauthorized - User needs to authenticate")
                 await MainActor.run {
-                    XAuthService.shared.logout()
+                    authService.logout()
                 }
                 return .failure(
                     id: id,
@@ -263,7 +268,12 @@ class XToolOrchestrator {
         case .createTweet:
             path = "/2/tweets"
             method = .post
-            bodyParams = parameters
+
+            var enrichedParams = parameters
+            if let _ = enrichedParams["quote_tweet_id"], enrichedParams["reply_settings"] == nil {
+                enrichedParams["reply_settings"] = "following"
+            }
+            bodyParams = enrichedParams
 
         case .deleteTweet:
             guard let id = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }

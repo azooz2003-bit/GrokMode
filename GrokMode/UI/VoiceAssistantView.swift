@@ -8,15 +8,16 @@
 import SwiftUI
 
 struct VoiceAssistantView: View {
-    @State private var viewModel = VoiceAssistantViewModel()
+    @State private var viewModel: VoiceAssistantViewModel
     @State private var animator = WaveformAnimator()
     @State var isAnimating = false
     @Namespace private var morphNamespace
 
     let autoConnect: Bool
 
-    init(autoConnect: Bool = false) {
+    init(autoConnect: Bool = false, authService: XAuthService) {
         self.autoConnect = autoConnect
+        self._viewModel = State(initialValue: VoiceAssistantViewModel(authService: authService))
     }
 
     var body: some View {
@@ -343,7 +344,7 @@ struct ToolConfirmationSheet: View {
 }
 
 #Preview {
-    VoiceAssistantView()
+    VoiceAssistantView(authService: XAuthService())
 }
 
 #Preview("Sheet") {

@@ -12,8 +12,12 @@ import Combine
 // MARK: - Main View
 
 struct VoiceTestView: View {
-    @State private var viewModel = VoiceTestViewModel()
-    
+    @State private var viewModel: VoiceTestViewModel
+
+    init(authService: XAuthService = XAuthService()) {
+        self._viewModel = State(initialValue: VoiceTestViewModel(authService: authService))
+    }
+
     var body: some View {
         NavigationView {
             ScrollView {
@@ -423,13 +427,15 @@ class VoiceTestViewModel: NSObject, AudioStreamerDelegate {
     var isXAuthenticated = false
     var xUserHandle: String?
     private var authCancellable: AnyCancellable?
+    private let authService: XAuthService
 
-    override init() {
+    init(authService: XAuthService) {
+        self.authService = authService
         super.init()
         // Initialize AudioStreamer
         audioStreamer = AudioStreamer()
         audioStreamer.delegate = self
-        
+
         setupAuthObservation()
         checkPermissions()
     }
@@ -439,24 +445,25 @@ class VoiceTestViewModel: NSObject, AudioStreamerDelegate {
 
     private func setupAuthObservation() {
         // Initial state
-        self.isXAuthenticated = XAuthService.shared.isAuthenticated
-        self.xUserHandle = XAuthService.shared.currentUserHandle
-        
+        self.isXAuthenticated = authService.isAuthenticated
+        self.xUserHandle = authService.currentUserHandle
+
         // Observe changes
-        authCancellable = XAuthService.shared.$isAuthenticated
+        authCancellable = authService.publisher(for: \.isAuthenticated)
             .receive(on: RunLoop.main)
             .sink { [weak self] isAuthenticated in
-                self?.isXAuthenticated = isAuthenticated
-                self?.xUserHandle = XAuthService.shared.currentUserHandle
+                guard let self = self else { return }
+                self.isXAuthenticated = isAuthenticated
+                self.xUserHandle = self.authService.currentUserHandle
             }
     }
-    
+
     func loginWithX() {
-        XAuthService.shared.login()
+        authService.login()
     }
-    
+
     func logoutX() {
-        XAuthService.shared.logout()
+        authService.logout()
     }
 
     var canConnect: Bool {
@@ -535,9 +542,9 @@ class VoiceTestViewModel: NSObject, AudioStreamerDelegate {
 
         // Initialize XAI service
         xaiService = XAIVoiceService(apiKey: Config.xAiApiKey, sessionState: sessionState)
-        
+
         // Tool Orchestrator
-        let toolOrchestrator = XToolOrchestrator()
+        let toolOrchestrator = XToolOrchestrator(authService: authService)
 
         // Set up callbacks
         xaiService?.onConnected = { [weak self] in
@@ -1016,8 +1023,8 @@ extension VoiceTestViewModel {
                       return
                   }
             
-            let orchestrator = XToolOrchestrator()
-            
+            let orchestrator = XToolOrchestrator(authService: authService)
+
             // Only support XTools for now? Or check name
             if let tool = XTool(rawValue: toolCall.function.name) {
                 let result = await orchestrator.executeTool(tool, parameters: parameters, id: toolCall.id)

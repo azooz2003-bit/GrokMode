@@ -2,24 +2,21 @@
 //  RootView.swift
 //  GrokMode
 //
-//  Created by Claude Code on 12/7/25.
+//  Created by Abdulaziz Albahar on 12/7/25.
 //
 
 import SwiftUI
 
-/// Root view that handles authentication routing
-/// - Shows LoginView if user is not authenticated
-/// - Shows VoiceAssistantView with auto-connect if user is authenticated
 struct RootView: View {
-    @ObservedObject private var authService = XAuthService.shared
+    @State private var authService = XAuthService()
 
     var body: some View {
         Group {
             if authService.isAuthenticated {
-                VoiceAssistantView(autoConnect: true)
+                VoiceAssistantView(autoConnect: true, authService: authService)
                     .transition(.opacity.combined(with: .scale(scale: 0.95)))
             } else {
-                LoginView()
+                LoginView(authService: authService)
                     .transition(.opacity.combined(with: .scale(scale: 1.05)))
             }
         }

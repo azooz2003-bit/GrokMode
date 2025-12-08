@@ -12,8 +12,9 @@ struct XToolTests {
         
         // Note: This test performs a REAL network request to X API.
         // It consumes API quota and creates a real tweet.
-        
-        let orchestrator = XToolOrchestrator()
+
+        let authService = XAuthService()
+        let orchestrator = XToolOrchestrator(authService: authService)
         let tweetText = "Automated Test Tweet via XCTest - \(Date().timeIntervalSince1970)"
         
         print("XToolTests: Attempting to create tweet: '\(tweetText)'")

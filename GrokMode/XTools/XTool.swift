@@ -275,8 +275,8 @@ enum XTool: String, CaseIterable, Identifiable {
                     "direct_message_deep_link": .string(description: "Link to take the conversation from the public timeline to a private Direct Message."),
                     "for_super_followers_only": .boolean(description: "Restrict to super followers only", default: false),
                     "reply_settings": .string(
-                        description: "Who can reply to the tweet",
-                        enum: ["everyone", "mentionedUsers", "following", "verified"]
+                        description: "Who can reply to the tweet. Note: To allow everyone to reply, do not include this field in the request.",
+                        enum: ["following", "mentionedUsers", "subscribers", "verified"]
                     )
                 ],
                 required: ["text"]

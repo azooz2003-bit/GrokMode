@@ -2,7 +2,7 @@
 //  AudioStreamer.swift
 //  GrokMode
 //
-//  Created by Elon Musk's AI Assistant on 12/7/25.
+//  Created by Matt Steele on 12/7/25.
 //
 
 import AVFoundation

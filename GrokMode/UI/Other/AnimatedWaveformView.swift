@@ -22,23 +22,23 @@ class WaveformAnimator {
     }
 
     func startAnimating() {
-//        guard !isAnimating else { return }
-//        isAnimating = true
-//
-//        timer = Timer.scheduledTimer(withTimeInterval: 0.08, repeats: true) { [weak self] _ in
-//            self?.updateAmplitudes()
-//        }
+        guard !isAnimating else { return }
+        isAnimating = true
+
+        timer = Timer.scheduledTimer(withTimeInterval: 0.08, repeats: true) { [weak self] _ in
+            self?.updateAmplitudes()
+        }
     }
 
     func stopAnimating() {
-//        isAnimating = false
-//        timer?.invalidate()
-//        timer = nil
-//
-//        // Smoothly return to baseline
-//        withAnimation(.easeOut(duration: 0.3)) {
-//            amplitudes = Array(repeating: 0.3, count: amplitudes.count)
-//        }
+        isAnimating = false
+        timer?.invalidate()
+        timer = nil
+
+        // Smoothly return to baseline
+        withAnimation(.easeOut(duration: 0.3)) {
+            amplitudes = Array(repeating: 0.3, count: amplitudes.count)
+        }
     }
 
     /// Updates the waveform based on audio input level
