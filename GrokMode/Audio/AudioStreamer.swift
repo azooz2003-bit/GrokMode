@@ -55,7 +55,7 @@ class AudioStreamer: NSObject {
         try audioSession.setCategory(.playAndRecord, mode: .videoChat, options: [.defaultToSpeaker, .allowBluetoothHFP, .allowAirPlay])
 
         // DON'T set preferred sample rate - let voice processing choose the optimal rate
-        try audioSession.setActive(true)
+        try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
         os_log("✅ Audio session configured for voice processing")
 
         // STEP 2: Create and configure audio engine
@@ -64,11 +64,11 @@ class AudioStreamer: NSObject {
         let playerNode = AVAudioPlayerNode()
         let mixerNode = audioEngine.mainMixerNode
 
-        // STEP 3: Enable Voice Processing BEFORE querying format
+        // STEP 3: Enable Voice Processing FIRST (this changes the format!)
         try inputNode.setVoiceProcessingEnabled(true)
         os_log("✅ Voice Processing (AEC) enabled")
 
-        // STEP 4: Query the actual hardware format chosen by voice processing
+        // STEP 4: NOW query the actual hardware format (AFTER voice processing is enabled)
         let hardwareFormat = inputNode.inputFormat(forBus: 0)
         os_log("📊 Hardware format (chosen by Voice Processing):")
         os_log("   Sample rate: \(hardwareFormat.sampleRate)Hz")
@@ -81,7 +81,7 @@ class AudioStreamer: NSObject {
 
         // Connect player to mixer using hardware format for smooth playback
         audioEngine.connect(playerNode, to: mixerNode, format: hardwareFormat)
-        os_log("✅ Audio nodes connected")
+        os_log("✅ Audio nodes connected with format: \(hardwareFormat.sampleRate)Hz")
 
         return AudioStreamer(
             audioEngine: audioEngine,
@@ -224,7 +224,7 @@ class AudioStreamer: NSObject {
             return sourceBuffer
         }
 
-        if let error = error {
+        if error != nil {
             throw AudioError.convertToiOSPlaybackFormatFailed
         }
 

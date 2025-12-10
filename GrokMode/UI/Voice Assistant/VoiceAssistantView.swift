@@ -57,12 +57,11 @@ struct VoiceAssistantView: View {
                                 }
                             }
                         }
-                        .matchedGeometryEffect(id: "waveform", in: morphNamespace)
                     } else {
                         waveformButton(barCount: 37)
-                            .disabled(!viewModel.isConnected && !viewModel.isConnecting)
+                            .disabled(!viewModel.isConnected)
                             .opacity(viewModel.isConnected ? 1.0 : 0.5)
-                            .matchedGeometryEffect(id: "waveform", in: morphNamespace)
+                            .frame(maxHeight: .infinity)
                     }
 
                 }
@@ -119,7 +118,6 @@ struct VoiceAssistantView: View {
             action()
         } label: {
             AnimatedWaveformView(animator: animator, barCount: barCount, accentColor: .background, isAnimating: isAnimating)
-                .frame(height: 40)
         }
         .buttonStyle(.glassProminent)
         .tint(.white)
@@ -157,9 +155,8 @@ struct VoiceAssistantView: View {
             Image(systemName: "stop.fill")
                 .foregroundStyle(.white)
                 .font(.system(size: 20))
-                .frame(width: 60, height: 75)
+//                .frame(width: 60, height: 75)
         }
-        .glassEffect(.clear.interactive())
     }
 }
 
