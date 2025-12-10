@@ -23,18 +23,7 @@ struct VoiceAssistantView: View {
     var body: some View {
         NavigationStack {
             VStack {
-                if !viewModel.micPermissionGranted {
-                    permissionView
-                } else if !viewModel.isConnected && !viewModel.isConnecting && !autoConnect {
-                    // Show connection view only if NOT auto-connecting
-                    connectionView
-                } else {
-                    // Show conversation list when:
-                    // - Connected
-                    // - Connecting
-                    // - Auto-connecting (even before connection starts)
-                    conversationList
-                }
+                conversationList
             }
             .toolbar {
                   ToolbarItem(placement: .principal) {
@@ -56,9 +45,9 @@ struct VoiceAssistantView: View {
                   }
               }
             .toolbar {
-                if !viewModel.isListening {
-                    ToolbarItem(placement:.bottomBar) {
-                        Button {
+                ToolbarItem(placement:.bottomBar) {
+                    if !viewModel.isListening {
+                        waveformButton(barCount: 5) {
                             // Reconnect if needed, then start listening
                             withAnimation {
                                 if !viewModel.isConnected {
@@ -67,26 +56,18 @@ struct VoiceAssistantView: View {
                                     viewModel.startListening()
                                 }
                             }
-                        } label: {
-                            AnimatedWaveformView(animator: animator, barCount: 5, accentColor: .background, isAnimating: isAnimating)
-                                .frame(height: 40)
                         }
-                        .buttonStyle(.glassProminent)
-                        .tint(.white)
-                        .disabled(!viewModel.isConnected && !viewModel.isConnecting)
-                        .opacity(viewModel.isConnected ? 1.0 : 0.5)
                         .matchedGeometryEffect(id: "waveform", in: morphNamespace)
+                    } else {
+                        waveformButton(barCount: 37)
+                            .disabled(!viewModel.isConnected && !viewModel.isConnecting)
+                            .opacity(viewModel.isConnected ? 1.0 : 0.5)
+                            .matchedGeometryEffect(id: "waveform", in: morphNamespace)
                     }
-                } else {
-                    ToolbarItem(placement:.bottomBar) {
-                        Button {} label: {
-                            AnimatedWaveformView(animator: animator, barCount: 37, accentColor: .background , isAnimating: isAnimating)
-                                .frame(maxWidth: .infinity, maxHeight: 40)
-                        }
-                        .buttonStyle(.glassProminent)
-                        .tint(.white)
-                        .matchedGeometryEffect(id: "waveform", in: morphNamespace)
-                    }
+
+                }
+
+                if viewModel.isListening {
 
                     ToolbarSpacer(.fixed, placement: .bottomBar)
                     DefaultToolbarItem(kind: .search, placement: .bottomBar)
@@ -94,20 +75,6 @@ struct VoiceAssistantView: View {
 
                     ToolbarItem(placement:.bottomBar) {
                         stopButton
-                    }
-                }
-
-                // Add reconnect button when disconnected
-                if !viewModel.isConnected && !viewModel.isConnecting {
-                    ToolbarItem(placement: .bottomBar) {
-                        Button {
-                            viewModel.reconnect()
-                        } label: {
-                            Label("Reconnect", systemImage: "arrow.clockwise")
-                                .font(.caption)
-                        }
-                        .buttonStyle(.bordered)
-                        .tint(.blue)
                     }
                 }
             }
@@ -146,69 +113,19 @@ struct VoiceAssistantView: View {
         }
     }
 
+    @ViewBuilder
+    private func waveformButton(barCount: Int, action: @escaping () -> Void = {}) -> some View {
+        Button {
+            action()
+        } label: {
+            AnimatedWaveformView(animator: animator, barCount: barCount, accentColor: .background, isAnimating: isAnimating)
+                .frame(height: 40)
+        }
+        .buttonStyle(.glassProminent)
+        .tint(.white)
+    }
+
     // MARK: - Subviews
-
-    private var permissionView: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "mic.slash.fill")
-                .font(.system(size: 60))
-                .foregroundColor(.gray)
-
-            Text("Microphone Access Required")
-                .font(.title2)
-                .fontWeight(.bold)
-
-            Text("Gerald needs microphone access to have voice conversations with you.")
-                .multilineTextAlignment(.center)
-                .foregroundColor(.gray)
-                .padding(.horizontal)
-
-            Button("Grant Access") {
-                viewModel.requestMicrophonePermission()
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(.blue)
-        }
-        .padding()
-    }
-
-    private var connectionView: some View {
-        VStack(spacing: 20) {
-            Image(.grok)
-                .resizable()
-                .frame(width: 80, height: 80)
-
-            Text("Ready to Talk to Gerald")
-                .font(.title2)
-                .fontWeight(.bold)
-
-            if let error = viewModel.connectionError {
-                Text(error)
-                    .font(.caption)
-                    .foregroundColor(.red)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal)
-            }
-
-            Button("Connect") {
-                viewModel.connect()
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(.blue)
-            .disabled(viewModel.isConnecting || !viewModel.canConnect)
-
-            if !viewModel.isXAuthenticated {
-                Button("Login with X") {
-                    Task {
-                        try? await viewModel.loginWithX()
-                    }
-                }
-                .buttonStyle(.bordered)
-                .tint(.black)
-            }
-        }
-        .padding()
-    }
 
     private var conversationList: some View {
         ScrollViewReader { scrollProxy in
@@ -246,111 +163,8 @@ struct VoiceAssistantView: View {
     }
 }
 
-// MARK: - Tool Confirmation Sheet
-
-struct ToolConfirmationSheet: View {
-    let toolCall: PendingToolCall
-    let onApprove: () -> Void
-    let onCancel: () -> Void
-
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        VStack(spacing: 20) {
-            // Header
-            HStack(spacing: 12) {
-                Image(systemName: "exclamationmark.shield.fill")
-                    .font(.system(size: 24))
-                    .foregroundStyle(.blue.gradient)
-                    .frame(width: 40, height: 40)
-                    .background(.white.opacity(0.1))
-                    .clipShape(Circle())
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Preview Action")
-                        .font(.headline)
-                        .foregroundStyle(.primary)
-                    
-                    Text("Grok needs your confirmation")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                
-                Spacer()
-            }
-            .padding(.top, 4)
-
-            Divider()
-                .background(.white.opacity(0.2))
-
-            // Tool Details
-            VStack(alignment: .leading, spacing: 8) {
-                Text(toolCall.previewTitle)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(.primary)
-
-                Text(toolCall.previewContent)
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(nil)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(16)
-            .background(.black.opacity(0.3))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(.white.opacity(0.1), lineWidth: 1)
-            )
-
-            Spacer()
-
-            // Action Buttons
-            HStack(spacing: 16) {
-                Button {
-                    onCancel()
-                    dismiss()
-                } label: {
-                    Text("Cancel")
-                        .font(.headline)
-                        .foregroundStyle(.white.opacity(0.8))
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 50)
-                }
-                .background(.black.opacity(0.4))
-                .clipShape(RoundedRectangle(cornerRadius: 16))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(.white.opacity(0.1), lineWidth: 1)
-                )
-
-                Button {
-                    onApprove()
-                    dismiss()
-                } label: {
-                    Text("Approve")
-                        .font(.headline)
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 50)
-                }
-                .background(.blue)
-                .clipShape(RoundedRectangle(cornerRadius: 16))
-                .shadow(color: .blue.opacity(0.4), radius: 10, x: 0, y: 5)
-            }
-        }
-        .padding(24)
-        // Removed custom background and presentation modifications
-    }
-}
-
 #Preview {
     @Previewable @State var authViewModel = AuthViewModel()
     VoiceAssistantView(authViewModel: authViewModel)
-}
-
-#Preview("Sheet") {
-    ToolConfirmationSheet(toolCall: .init(id: "ddwd", functionName: "ffq", arguments: "fqfq", previewTitle: "fqf", previewContent: "fqffff"), onApprove: {}, onCancel: {})
 }
 

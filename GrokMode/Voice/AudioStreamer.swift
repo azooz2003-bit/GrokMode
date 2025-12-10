@@ -7,6 +7,7 @@
 
 import AVFoundation
 import Foundation
+import OSLog
 
 protocol AudioStreamerDelegate: AnyObject {
     func audioStreamerDidReceiveAudioData(_ data: Data)
@@ -18,11 +19,11 @@ protocol AudioStreamerDelegate: AnyObject {
 class AudioStreamer: NSObject {
     weak var delegate: AudioStreamerDelegate?
 
-    private var audioEngine: AVAudioEngine!
-    private var inputNode: AVAudioInputNode!
-    private var playerNode: AVAudioPlayerNode!
-    private var audioFormat: AVAudioFormat!
-    private var mixerNode: AVAudioMixerNode!
+    private var audioEngine: AVAudioEngine
+    private var inputNode: AVAudioInputNode
+    private var playerNode: AVAudioPlayerNode
+    private var audioFormat: AVAudioFormat
+    private var mixerNode: AVAudioMixerNode
 
     private var isStreaming = false
     private var speechDetected = false
@@ -31,10 +32,10 @@ class AudioStreamer: NSObject {
     private let silenceDuration = 30 // frames (~1.5 seconds at 20ms per frame)
 
     // XAI audio format: 24kHz, 16-bit PCM, mono
-    private let xaiSampleRate: Double = 24000
+    private static let xaiSampleRate: Double = 24000
 
     // Lazy initialization to ensure formats are created after audio session is configured
-    private lazy var xaiFormat: AVAudioFormat = {
+    private static let xaiFormat: AVAudioFormat = {
         guard let format = AVAudioFormat(commonFormat: .pcmFormatInt16,
                                          sampleRate: xaiSampleRate,
                                          channels: 1,
@@ -45,43 +46,30 @@ class AudioStreamer: NSObject {
     }()
 
     // Internal processing format (usually standard Float32)
-    private lazy var processingFormat: AVAudioFormat = {
+    private static let processingFormat: AVAudioFormat = {
         guard let format = AVAudioFormat(standardFormatWithSampleRate: xaiSampleRate, channels: 1) else {
             fatalError("Failed to create processing audio format with sample rate: \(xaiSampleRate)")
         }
         return format
     }()
 
-    override init() {
-        super.init()
-        setupAudioEngine()
-    }
+    // MARK: Setup Audio Session
 
-    private func setupAudioEngine() {
-        // STEP 1: Set up audio session FIRST (before anything else)
+    static public func make() throws -> AudioStreamer {
         let audioSession = AVAudioSession.sharedInstance()
-        do {
-            // Use .videoChat or .spokenAudio. .videoChat often behaves better for speakerphone AEC than .voiceChat
-            try audioSession.setCategory(.playAndRecord, mode: .voiceChat, options: [.defaultToSpeaker, .allowBluetoothHFP, .allowAirPlay])
+        // Use .videoChat or .spokenAudio. .videoChat often behaves better for speakerphone AEC than .voiceChat
+        try audioSession.setCategory(.playAndRecord, mode: .videoChat, options: [.defaultToSpeaker, .allowBluetoothHFP, .allowAirPlay])
 
-            // Set preferred sample rate and validate it
-            try audioSession.setPreferredSampleRate(xaiSampleRate)
-            let actualSampleRate = audioSession.sampleRate
-            print("✅ Audio session configured")
-            print("   Preferred sample rate: \(xaiSampleRate)Hz")
-            print("   Actual sample rate: \(actualSampleRate)Hz")
+        try audioSession.setPreferredSampleRate(xaiSampleRate)
+        let actualSampleRate = audioSession.sampleRate
 
-            try audioSession.setActive(true)
-        } catch {
-            print("❌ Failed to setup audio session: \(error)")
-            print("   This may cause audio format issues")
-        }
+        try audioSession.setActive(true)
 
         // STEP 2: Create and configure audio engine
-        audioEngine = AVAudioEngine()
-        inputNode = audioEngine.inputNode
-        playerNode = AVAudioPlayerNode()
-        mixerNode = audioEngine.mainMixerNode
+        let audioEngine = AVAudioEngine()
+        let inputNode = audioEngine.inputNode
+        let playerNode = AVAudioPlayerNode()
+        let mixerNode = audioEngine.mainMixerNode
 
         // STEP 3: Attach and Connect Nodes
         // We use the playerNode for playing back the AI's voice
@@ -91,52 +79,64 @@ class AudioStreamer: NSObject {
         // Use processingFormat (Float32) to ensure matching format for scheduling
         // Access processingFormat here to trigger lazy initialization
         let connectedFormat = processingFormat
-        print("   Connecting player with format: \(connectedFormat.sampleRate)Hz, \(connectedFormat.channelCount) channels")
+        os_log("   Connecting player with format: \(connectedFormat.sampleRate)Hz, \(connectedFormat.channelCount) channels")
         audioEngine.connect(playerNode, to: mixerNode, format: connectedFormat)
 
         // Use the XAI format for consistency reference (trigger lazy initialization)
-        audioFormat = xaiFormat
-        print("   XAI format: \(audioFormat.sampleRate)Hz, \(audioFormat.channelCount) channels")
+        let audioFormat = xaiFormat
+        os_log("   XAI format: \(audioFormat.sampleRate)Hz, \(audioFormat.channelCount) channels")
 
         // STEP 4: Enable Voice Processing (AEC) on Input Node - AFTER session is configured
-        do {
-            try inputNode.setVoiceProcessingEnabled(true)
-            print("✅ Voice Processing (AEC) enabled on input node")
-        } catch {
-            print("❌ Failed to enable Voice Processing: \(error)")
-        }
+        try inputNode.setVoiceProcessingEnabled(true)
+
+        return AudioStreamer(audioEngine: audioEngine, inputNode: inputNode, playerNode: playerNode, mixerNode: mixerNode, audioFormat: audioFormat)
     }
 
-    func startStreaming() {
+    init(
+        audioEngine: AVAudioEngine,
+        inputNode: AVAudioInputNode,
+        playerNode: AVAudioPlayerNode,
+        mixerNode: AVAudioMixerNode,
+        audioFormat: AVAudioFormat
+    ) {
+        self.audioEngine = audioEngine
+        self.inputNode = inputNode
+        self.playerNode = playerNode
+        self.mixerNode = mixerNode
+        self.audioFormat = audioFormat
+
+        super.init()
+    }
+
+    // MARK: Audio Actions
+
+    func startStreaming() throws {
         guard !isStreaming else { return }
 
-        print("🎙️ Starting audio streaming to XAI...")
+        os_log("🎙️ Starting audio streaming to XAI...")
 
         let inputFormat = inputNode.inputFormat(forBus: 0)
-        print("🎙️ Input format: \(inputFormat.sampleRate)Hz, \(inputFormat.channelCount) channels")
+        os_log("🎙️ Input format: \(inputFormat.sampleRate)Hz, \(inputFormat.channelCount) channels")
 
         // Install a tap on the input node to capture audio
         // Note: VoiceProcessingIO might force a specific format (usually 48kHz or 24kHz), we must handle it.
         inputNode.installTap(onBus: 0, bufferSize: 1024, format: inputFormat) { [weak self] (buffer, time) in
-            self?.processAudioBuffer(buffer)
+            do {
+                try self?.processAudioBuffer(buffer)
+            } catch {
+                os_log("Processing incoming audio buffer from microphone failed.")
+            }
         }
 
-        do {
-            if !audioEngine.isRunning {
-                try audioEngine.start()
-            }
-            playerNode.play() // Start the player node so it's ready to handle scheduled buffers
-            isStreaming = true
-            print("✅ Audio streaming started")
-        } catch {
-            print("❌ Failed to start audio engine: \(error)")
+        if !audioEngine.isRunning {
+            try audioEngine.start()
         }
+        playerNode.play() // Start the player node so it's ready to handle scheduled buffers
+        isStreaming = true
     }
 
     func stopStreaming() {
         guard isStreaming else { return }
-
-        print("🛑 Stopping audio streaming...")
 
         // Don't fully stop the engine if we want to keep playing clean tails, but typically we stop.
         // For full session end:
@@ -148,7 +148,7 @@ class AudioStreamer: NSObject {
         speechDetected = false
         silenceCounter = 0
 
-        print("✅ Audio streaming stopped")
+        os_log("✅ Audio streaming stopped")
     }
     
     // Playback Function
@@ -156,16 +156,13 @@ class AudioStreamer: NSObject {
         if playerNode.isPlaying {
             playerNode.stop()
         }
-        print("🛑 Playback interrupted by user")
+        os_log("🛑 Playback interrupted by user")
     }
 
-    func playAudio(_ data: Data) {
+    func playAudio(_ data: Data) throws {
         // Convert the incoming Data (PCM16) to a playable buffer
-        guard let buffer = convertDataToBuffer(data) else {
-            print("❌ Failed to create buffer for playback")
-            return
-        }
-        
+        let buffer = try convertDataToBuffer(data)
+
         if !audioEngine.isRunning {
             try? audioEngine.start()
         }
@@ -177,16 +174,20 @@ class AudioStreamer: NSObject {
         playerNode.scheduleBuffer(buffer, at: nil, options: [], completionHandler: nil)
     }
     
-    private func convertDataToBuffer(_ data: Data) -> AVAudioPCMBuffer? {
+    private func convertDataToBuffer(_ data: Data) throws -> AVAudioPCMBuffer {
         // Data is Int16 (2 bytes per sample) 24kHz Mono
         let frameCount = UInt32(data.count / 2)
         
         // Use processingFormat (Float32) for playback
-        guard let buffer = AVAudioPCMBuffer(pcmFormat: processingFormat, frameCapacity: frameCount) else { return nil }
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: Self.processingFormat, frameCapacity: frameCount) else {
+            throw AudioError.convertToiOSPlaybackFormatFailed
+        }
         
         buffer.frameLength = frameCount
         
-        guard let floatChannelData = buffer.floatChannelData?[0] else { return nil }
+        guard let floatChannelData = buffer.floatChannelData?[0] else {
+            throw AudioError.convertToiOSPlaybackFormatFailed
+        }
         
         // Convert Int16 to Float32
         data.withUnsafeBytes { (bytes: UnsafeRawBufferPointer) in
@@ -201,12 +202,12 @@ class AudioStreamer: NSObject {
         return buffer
     }
 
-    private func processAudioBuffer(_ buffer: AVAudioPCMBuffer) {
+    // MARK: Helpers
+
+    /// Processes input audio
+    private func processAudioBuffer(_ buffer: AVAudioPCMBuffer) throws {
         // Convert to XAI format (24kHz, 16-bit PCM, mono)
-        guard let convertedBuffer = convertToXAIFormat(buffer) else {
-            // print("❌ Failed to convert audio buffer") // Can be spammy
-            return
-        }
+        let convertedBuffer = try convertToXAIFormat(buffer)
 
         // Simple VAD (Voice Activity Detection)
         let rms = calculateRMS(convertedBuffer)
@@ -221,7 +222,7 @@ class AudioStreamer: NSObject {
             speechDetected = true
             silenceCounter = 0
             delegate?.audioStreamerDidDetectSpeechStart()
-            print("🎤 Speech detected (RMS: \(String(format: "%.1f", rms)) dB)")
+            os_log("🎤 Speech detected (RMS: \(String(format: "%.1f", rms)) dB)")
         } else if rms <= silenceThreshold && speechDetected {
             // Potential silence
             silenceCounter += 1
@@ -230,7 +231,7 @@ class AudioStreamer: NSObject {
                 speechDetected = false
                 silenceCounter = 0
                 delegate?.audioStreamerDidDetectSpeechEnd()
-                print("🤫 Speech ended (silence detected)")
+                os_log("🤫 Speech ended (silence detected)")
             }
         } else if speechDetected {
             // Reset silence counter during speech
@@ -248,18 +249,23 @@ class AudioStreamer: NSObject {
         }
     }
 
-    private func convertToXAIFormat(_ buffer: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
+    enum AudioError: Error {
+        case convertToxAiFormatFailed, convertToiOSPlaybackFormatFailed
+    }
+
+    private func convertToXAIFormat(_ buffer: AVAudioPCMBuffer) throws -> AVAudioPCMBuffer {
         // Optimization: If format already matches, return as is
-        if buffer.format == xaiFormat { return buffer }
-        
+        if buffer.format == Self.xaiFormat { return buffer }
+
         // Convert to XAI format: 24kHz, mono, 16-bit PCM
-        let converter = AVAudioConverter(from: buffer.format, to: xaiFormat)
-        
-        let ratio = xaiFormat.sampleRate / buffer.format.sampleRate
+        let converter = AVAudioConverter(from: buffer.format, to: Self.xaiFormat)
+
+        // Adjust frame length of input buffer to follow xAI's sample rate
+        let ratio = Self.xaiFormat.sampleRate / buffer.format.sampleRate
         let frameCount = AVAudioFrameCount(Double(buffer.frameLength) * ratio)
         
-        guard let outputBuffer = AVAudioPCMBuffer(pcmFormat: xaiFormat, frameCapacity: frameCount) else {
-            return nil
+        guard let outputBuffer = AVAudioPCMBuffer(pcmFormat: Self.xaiFormat, frameCapacity: frameCount) else {
+            throw AudioError.convertToxAiFormatFailed
         }
 
         var error: NSError?
@@ -268,9 +274,8 @@ class AudioStreamer: NSObject {
             return buffer
         }
 
-        if status == .error {
-            // print("❌ Audio conversion failed: \(error?.localizedDescription ?? "Unknown error")")
-            return nil
+        if status == .error || error != nil {
+            throw AudioError.convertToxAiFormatFailed
         }
 
         outputBuffer.frameLength = frameCount

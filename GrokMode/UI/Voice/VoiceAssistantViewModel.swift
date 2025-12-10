@@ -81,7 +81,7 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
         self.authViewModel = authViewModel
         super.init()
 
-        audioStreamer = AudioStreamer()
+        audioStreamer = AudioStreamer.make()
         audioStreamer.delegate = self
 
         checkPermissions()
