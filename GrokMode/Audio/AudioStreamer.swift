@@ -82,7 +82,7 @@ class AudioStreamer: NSObject {
         os_log("   Connecting player with format: \(connectedFormat.sampleRate)Hz, \(connectedFormat.channelCount) channels")
         audioEngine.connect(playerNode, to: mixerNode, format: connectedFormat)
 
-        // Use the XAI format for consistency reference (trigger lazy initialization)
+        // Use the XAI format for consistency reference
         let audioFormat = xaiFormat
         os_log("   XAI format: \(audioFormat.sampleRate)Hz, \(audioFormat.channelCount) channels")
 

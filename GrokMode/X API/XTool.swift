@@ -112,9 +112,6 @@ enum XTool: String, CaseIterable, Identifiable {
 
     case listComplianceJobs = "list_compliance_jobs"
 
-    // MARK: - Integrations
-    case createLinearTicket = "create_linear_ticket"
-
     // MARK: - Media
     case uploadMedia = "upload_media"
     case getMediaStatus = "get_media_status"
@@ -228,9 +225,6 @@ enum XTool: String, CaseIterable, Identifiable {
         case .createComplianceJob: return "Create a compliance job"
         case .getComplianceJob: return "Get compliance job details"
         case .listComplianceJobs: return "List all compliance jobs"
-
-        // Integrations
-        case .createLinearTicket: return "Create a new ticket in Linear for engineering. Use this when the CEO asks to fix a bug or add a feature based on tweets."
 
         // Media
         case .uploadMedia: return "Upload media file"
@@ -1445,17 +1439,6 @@ enum XTool: String, CaseIterable, Identifiable {
                     "media_key": .string(description: "The media key")
                 ],
                 required: ["media_key"]
-            )
-
-
-        // MARK: - Integrations
-        case .createLinearTicket:
-            return .object(
-                properties: [
-                    "title": .string(description: "Title of the ticket"),
-                    "description": .string(description: "Detailed description. MUST include tweet links and instructions.")
-                ],
-                required: ["title", "description"]
             )
         }
     }

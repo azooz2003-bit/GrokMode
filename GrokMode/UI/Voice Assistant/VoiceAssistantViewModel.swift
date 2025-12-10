@@ -9,6 +9,15 @@ import SwiftUI
 import AVFoundation
 import Combine
 import Authentication
+import OSLog
+
+struct PendingToolCall: Identifiable {
+    let id: String
+    let functionName: String
+    let arguments: String
+    let previewTitle: String
+    let previewContent: String
+}
 
 enum ConversationItemType {
     case userSpeech(transcript: String)
@@ -57,7 +66,7 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
     // MARK: - Private Properties
 
     private var xaiService: XAIVoiceService?
-    private var audioStreamer: AudioStreamer!
+    private var audioStreamer: AudioStreamer?
     private var sessionState = SessionState()
     private let authViewModel: AuthViewModel
 
@@ -81,8 +90,8 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
         self.authViewModel = authViewModel
         super.init()
 
-        audioStreamer = AudioStreamer.make()
-        audioStreamer.delegate = self
+        audioStreamer = try? AudioStreamer.make()
+        audioStreamer?.delegate = self
 
         checkPermissions()
     }
@@ -258,7 +267,7 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
 
     func disconnect() {
         xaiService?.disconnect()
-        audioStreamer.stopStreaming()
+        audioStreamer?.stopStreaming()
         isGeraldSpeaking = false
         isListening = false
         isConnected = false
@@ -271,8 +280,8 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
         print("🔄 Reconnecting...")
 
         // Stop any existing streams
-        audioStreamer.stopStreaming()
         isListening = false
+        audioStreamer?.stopStreaming()
         isGeraldSpeaking = false
 
         // Disconnect existing service
@@ -287,15 +296,15 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
 
     // MARK: - Audio Streaming
 
-    func startListening() {
+    func startListening() throws {
         guard isConnected else { return }
 
-        audioStreamer.startStreaming()
         isListening = true
+        try audioStreamer?.startStreaming()
     }
 
     func stopListening() {
-        audioStreamer.stopStreaming()
+        audioStreamer?.stopStreaming()
         isListening = false
         currentAudioLevel = 0.0  // Reset waveform to baseline
     }
@@ -393,7 +402,7 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
 
         case "input_audio_buffer.speech_started":
             // User started speaking
-            audioStreamer.stopPlayback()
+            audioStreamer?.stopPlayback()
             isGeraldSpeaking = false
 
             // Handle truncation
@@ -414,7 +423,11 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
 
         case "response.output_audio.delta":
             if let delta = message.delta, let audioData = Data(base64Encoded: delta) {
-                audioStreamer.playAudio(audioData)
+                do {
+                    try audioStreamer?.playAudio(audioData) // TODO: handle error
+                } catch {
+                    os_log("Failed to play audio: \(error)")
+                }
                 isGeraldSpeaking = true
 
                 // Track start time of first audio chunk
@@ -497,54 +510,7 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
             let outputString: String
             let isSuccess: Bool
 
-            // Special handling for Linear ticket creation
-            if toolCall.function.name == "create_linear_ticket" {
-                guard let title = parameters["title"] as? String else {
-                    outputString = "Missing required parameter: title"
-                    isSuccess = false
-                    try? xaiService?.sendToolOutput(toolCallId: toolCall.id, output: outputString, success: isSuccess)
-                    try? xaiService?.createResponse()
-                    return
-                }
-
-                let description = parameters["description"] as? String
-
-                let linearService = LinearAPIService(apiToken: Config.linearApiKey)
-
-                do {
-                    // Get teams first
-                    let teams = try await linearService.getTeams()
-                    guard let firstTeam = teams.first else {
-                        throw NSError(domain: "LinearAPI", code: -1, userInfo: [NSLocalizedDescriptionKey: "No teams found"])
-                    }
-
-                    // Create the issue
-                    let issue = try await linearService.createIssue(title: title, description: description, teamId: firstTeam.id)
-
-                    // Format response
-                    let issueStruct = LinearIssueStruct(
-                        id: issue.id,
-                        title: issue.title,
-                        number: issue.number,
-                        url: issue.url,
-                        createdAt: issue.createdAt
-                    )
-
-                    let jsonData = try JSONEncoder().encode(issueStruct)
-                    outputString = String(data: jsonData, encoding: .utf8) ?? "{}"
-                    isSuccess = true
-                } catch {
-                    outputString = "Failed to create Linear ticket: \(error.localizedDescription)"
-                    isSuccess = false
-                }
-
-                try? xaiService?.sendToolOutput(toolCallId: toolCall.id, output: outputString, success: isSuccess)
-                try? xaiService?.createResponse()
-
-                addConversationItem(.toolCall(name: toolCall.function.name, status: .executed(success: isSuccess)))
-                pendingToolCall = nil
-
-            } else if let tool = XTool(rawValue: toolCall.function.name) {
+            if let tool = XTool(rawValue: toolCall.function.name) {
                 // Handle X API tools through orchestrator
                 let orchestrator = XToolOrchestrator(authService: authViewModel.authService)
                 let result = await orchestrator.executeTool(tool, parameters: parameters, id: toolCall.id)

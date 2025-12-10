@@ -17,8 +17,8 @@ struct XToolIntegration {
 
     static func getToolDefinitions() -> [VoiceMessage.ToolDefinition] {
         var definitions: [VoiceMessage.ToolDefinition] = []
-        
-        // Add all X tools (including Linear)
+
+        // Add all X tools
         for tool in tools {
             if let schema = try? toolJSONSchema(for: tool) {
                 definitions.append(VoiceMessage.ToolDefinition(

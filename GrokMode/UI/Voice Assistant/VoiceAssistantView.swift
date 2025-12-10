@@ -53,7 +53,7 @@ struct VoiceAssistantView: View {
                                 if !viewModel.isConnected {
                                     viewModel.reconnect()
                                 } else {
-                                    viewModel.startListening()
+                                    try? viewModel.startListening() // TODO: handle error
                                 }
                             }
                         }

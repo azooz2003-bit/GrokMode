@@ -62,19 +62,9 @@ struct XMedia: Codable, Identifiable, Sendable {
     }
 }
 
-// Duplicated from LinearAPIService to avoid module import issues if not in same module
-public struct LinearIssueStruct: Codable, Identifiable {
-    public let id: String
-    public let title: String
-    public let number: Int
-    public let url: String
-    public let createdAt: String
-}
-
 enum ToolResponseContent: Codable {
     case tweets([XTweet])
     case users([XUser])
-    case linearIssue(LinearIssueStruct)
     case success(message: String)
     case failure(message: String)
     case raw(String)
@@ -102,14 +92,7 @@ enum ToolResponseContent: Codable {
                  struct UserResponse: Codable { let data: XUser }
                  let response = try decoder.decode(UserResponse.self, from: data)
                  return .users([response.data])
-                
-            case "create_linear_ticket":
-                 // Linear returns the issue object directly or wrapped
-                 // Based on LinearAPIService, it returns a LinearIssue struct
-                 // But wait, the tool result is a stringified JSON of that struct
-                 let issue = try decoder.decode(LinearIssueStruct.self, from: data)
-                 return .linearIssue(issue)
-                
+
             default:
                 break
             }
