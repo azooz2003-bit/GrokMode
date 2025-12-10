@@ -570,7 +570,7 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
         print(response.prefix(500))
 
         do {
-            if toolName == "search_recent_tweets" || toolName == "get_tweets" {
+            if toolName == "search_recent_tweets" || toolName == "search_all_tweets" || toolName == "get_tweets" || toolName == "get_tweet" || toolName == "get_user_liked_tweets" {
                 struct TweetResponse: Codable {
                     let data: [XTweet]?
                     let includes: Includes?
