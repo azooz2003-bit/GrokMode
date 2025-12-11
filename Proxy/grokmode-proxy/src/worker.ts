@@ -16,7 +16,7 @@ Promise<Response> {
         }
 
         // Get ephemeral token for Grok Voice API
-        if (url.pathname === '/grok/realtime/session') {
+        if (url.pathname === '/grok/v1/realtime/client_secrets') {
             const response = await
 fetch('https://api.x.ai/v1/realtime/client_secrets', {
                 method: 'POST',

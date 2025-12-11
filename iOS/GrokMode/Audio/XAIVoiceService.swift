@@ -224,8 +224,9 @@ struct VoiceMessage: Codable {
 
 class XAIVoiceService {
     private let apiKey: String
-    private let baseURL: URL = URL(string: Config.baseXAIProxyURL)!
-    private var sessionURL: URL { baseURL.appending(path: "v1/realtime/client_secrets") }
+    private let baseProxyURL: URL = Config.baseXAIProxyURL
+    private let baseURL: URL = Config.baseXAIURL
+    private var sessionURL: URL { baseProxyURL.appending(path: "v1/realtime/client_secrets") }
     private var websocketURL: URL { baseURL.appending(path: "v1/realtime")}
 
     private var webSocketTask: URLSessionWebSocketTask?
@@ -295,7 +296,7 @@ class XAIVoiceService {
         print("🔑 HTTP Method: \(request.httpMethod ?? "UNKNOWN")")
 
         // Set headers
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+//        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(Config.appSecret, forHTTPHeaderField: "X-App-Secret")
 

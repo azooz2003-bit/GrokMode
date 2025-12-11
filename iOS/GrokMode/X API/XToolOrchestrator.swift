@@ -13,7 +13,7 @@ enum HTTPMethod: String {
 }
 
 actor XToolOrchestrator {
-    private var baseURL: String { Config.baseXAIProxyURL }
+    private var baseURL: URL { Config.baseXAIProxyURL }
     private let authService: XAuthService
 
     init(authService: XAuthService) {
@@ -793,7 +793,7 @@ actor XToolOrchestrator {
         }
 
         // Build URL
-        var urlComponents = URLComponents(string: baseURL + path)
+        var urlComponents = URLComponents(string: baseURL.absoluteString + path)
         if !queryItems.isEmpty {
             urlComponents?.queryItems = queryItems
         }
@@ -808,6 +808,7 @@ actor XToolOrchestrator {
         let token = try await getBearerToken(for: tool)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(Config.appSecret, forHTTPHeaderField: "X-App-Secret")
 
         // Add body if present
         if !bodyParams.isEmpty {

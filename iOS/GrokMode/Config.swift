@@ -24,18 +24,20 @@ enum Config {
     }()
 
     static let baseXProxyURL = {
-        guard let apiKey = Bundle.main.infoDictionary?["BASE_X_PROXY_URL"] as? String else {
+        guard let url = Bundle.main.infoDictionary?["BASE_X_PROXY_URL"] as? String else {
             fatalError()
         }
-        return apiKey
+        return URL(string: url)!
     }()
 
     static let baseXAIProxyURL = {
-        guard let apiKey = Bundle.main.infoDictionary?["BASE_XAI_PROXY_URL"] as? String else {
+        guard let url = Bundle.main.infoDictionary?["BASE_XAI_PROXY_URL"] as? String else {
             fatalError()
         }
-        return apiKey
+        return URL(string: url)!
     }()
+
+    static let baseXAIURL = URL(string: "https://api.x.ai/v1/")!
 
     static let appSecret = "34FxRVXGLo3hSikbYhH7a5n7JKHGSghaLrlddbD0/l8=" // TODO: remove
 }
