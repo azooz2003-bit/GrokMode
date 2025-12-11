@@ -296,7 +296,6 @@ class XAIVoiceService {
         print("🔑 HTTP Method: \(request.httpMethod ?? "UNKNOWN")")
 
         // Set headers
-//        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(Config.appSecret, forHTTPHeaderField: "X-App-Secret")
 
