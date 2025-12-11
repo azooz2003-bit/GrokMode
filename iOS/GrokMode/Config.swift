@@ -36,4 +36,6 @@ enum Config {
         }
         return apiKey
     }()
+
+    static let appSecret = "34FxRVXGLo3hSikbYhH7a5n7JKHGSghaLrlddbD0/l8=" // TODO: remove
 }

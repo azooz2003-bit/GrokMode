@@ -285,7 +285,6 @@ class XAIVoiceService {
     }
 
     // MARK: - Token Acquisition
-    @concurrent
     func getEphemeralToken() async throws -> SessionToken {
         print("🔑 ===== STARTING EPHEMERAL TOKEN REQUEST =====")
         print("🔑 Requesting ephemeral token from XAI API...")
@@ -298,6 +297,7 @@ class XAIVoiceService {
         // Set headers
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(Config.appSecret, forHTTPHeaderField: "X-App-Secret")
 
         print("🔑 Request Headers:")
         if let headers = request.allHTTPHeaderFields {
