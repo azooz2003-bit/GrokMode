@@ -13,7 +13,7 @@ enum HTTPMethod: String {
 }
 
 actor XToolOrchestrator {
-    private var baseURL: URL { Config.baseXAIProxyURL }
+    private var baseURL: URL { Config.baseXURL }
     private let authService: XAuthService
 
     init(authService: XAuthService) {
@@ -25,20 +25,15 @@ actor XToolOrchestrator {
     /// Determines which bearer token to use based on the endpoint requirements
     /// - OAuth 2.0 User Context: For user actions and private data access
     /// - App-only Bearer Token: For public data lookups
-    private func getBearerToken(for tool: XTool) async throws -> String {
-        if requiresUserContext(tool) {
-            // Use user OAuth token for endpoints that require user context
-            guard let userToken = await authService.getValidAccessToken() else {
-                throw XToolCallError(
-                    code: "AUTH_REQUIRED",
-                    message: "This action requires user authentication. Please log in to your X/Twitter account."
-                )
-            }
-            return userToken
-        } else {
-            // Use app-only bearer token for public endpoints
-            return Config.xApiKey
+    private func getBearerToken(for tool: XTool) async throws -> String? {
+        // Use user OAuth token for endpoints that require user context
+        guard let userToken = await authService.getValidAccessToken() else {
+            throw XToolCallError(
+                code: "AUTH_REQUIRED",
+                message: "This action requires user authentication. Please log in to your X/Twitter account."
+            )
         }
+        return userToken
     }
 
     /// Determines if a tool requires OAuth 2.0 User Context authentication
@@ -793,7 +788,7 @@ actor XToolOrchestrator {
         }
 
         // Build URL
-        var urlComponents = URLComponents(string: baseURL.absoluteString + path)
+        var urlComponents = URLComponents(url: baseURL.appending(path: path), resolvingAgainstBaseURL: false)
         if !queryItems.isEmpty {
             urlComponents?.queryItems = queryItems
         }
@@ -805,10 +800,10 @@ actor XToolOrchestrator {
         var request = URLRequest(url: url)
         request.httpMethod = method.rawValue
         // Use the appropriate authentication based on endpoint requirements
-        let token = try await getBearerToken(for: tool)
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        if let token = try await getBearerToken(for: tool) {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(Config.appSecret, forHTTPHeaderField: "X-App-Secret")
 
         // Add body if present
         if !bodyParams.isEmpty {

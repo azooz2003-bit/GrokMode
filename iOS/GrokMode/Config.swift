@@ -9,20 +9,6 @@ import Foundation
 
 nonisolated
 enum Config {
-    static let xApiKey = {
-        guard let apiKey = Bundle.main.infoDictionary?["X_API_KEY"] as? String else {
-            fatalError()
-        }
-        return apiKey
-    }()
-    
-    static let xAiApiKey = {
-        guard let apiKey = Bundle.main.infoDictionary?["X_AI_API_KEY"] as? String else {
-            fatalError()
-        }
-        return apiKey
-    }()
-
     static let baseXProxyURL = {
         guard let url = Bundle.main.infoDictionary?["BASE_X_PROXY_URL"] as? String else {
             fatalError()
@@ -37,7 +23,8 @@ enum Config {
         return URL(string: url)!
     }()
 
-    static let baseXAIURL = URL(string: "https://api.x.ai/v1/")!
+    static let baseXAIURL = URL(string: "https://api.x.ai/")!
+    static let baseXURL = URL(string: "https://api.x.com/")!
 
-    static let appSecret = "34FxRVXGLo3hSikbYhH7a5n7JKHGSghaLrlddbD0/l8=" // TODO: remove
+    static let appSecret = "34FxRVXGLo3hSikbYhH7a5n7JKHGSghaLrlddbD0/l8=" // TODO: replace with App Attest
 }

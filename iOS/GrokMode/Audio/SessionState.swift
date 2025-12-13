@@ -134,7 +134,7 @@ class SessionState {
             id: id,
             toolName: toolName,
             parameters: stringParams,
-            timestamp: Date()
+            timestamp: Date.now
         )
         
         let log = ToolLog(call: callData, response: nil)

@@ -6,224 +6,9 @@
 //
 
 import Foundation
-
-// MARK: - Data Models
-
-nonisolated
-struct SessionToken: Codable {
-    let value: String
-    let expiresAt: TimeInterval
-
-    enum CodingKeys: String, CodingKey {
-        case value
-        case expiresAt = "expires_at"
-    }
-}
-
-nonisolated
-struct VoiceMessage: Codable {
-    let type: String
-    let audio: String? // Base64 encoded audio data
-    let text: String? // Text content
-    let delta: String? // Audio delta for streaming responses
-    let session: SessionConfig? // Session configuration
-    let item: ConversationItem? // Conversation items
-    var tools: [ToolDefinition]? = nil // Tool definitions for session update
-    var tool_call_id: String? = nil // For function call outputs
-    
-    // For response.function_call_arguments.done
-    var call_id: String? = nil
-    var name: String? = nil
-    var arguments: String? = nil
-
-    // Additional fields from XAI messages
-    let event_id: String?
-    let previous_item_id: String?
-    let response_id: String?
-    let output_index: Int?
-    let item_id: String?
-    let content_index: Int?
-    let audio_start_ms: Int?
-    let audio_end_ms: Int?
-    let start_time: Double?
-    let timestamp: Int?
-    let part: ContentPart?
-    let response: Response?
-    let conversation: Conversation?
-
-    // Session configuration
-    // Session configuration
-    struct SessionConfig: Codable {
-        let instructions: String?
-        let voice: String?
-        let audio: AudioConfig?
-        let turnDetection: TurnDetection?
-        var tools: [ToolDefinition]? = nil
-        var tool_choice: String? = nil // "auto", "none", or "required" (or specific tool)
-
-        enum CodingKeys: String, CodingKey {
-            case instructions, voice, audio, tools, tool_choice
-            case turnDetection = "turn_detection"
-        }
-    }
-
-    struct ToolDefinition: Codable {
-        let type: String // "function"
-        let name: String? // Optional - XAI API sometimes sends incomplete tool definitions
-        let description: String? // Optional to handle API variations
-        let parameters: JSONValue? // JSON object of schema - optional to handle incomplete responses
-    }
-
-    enum JSONValue: Codable {
-        case string(String)
-        case number(Double)
-        case bool(Bool)
-        case null
-        case array([JSONValue])
-        case object([String: JSONValue])
-
-        init(from decoder: Decoder) throws {
-            let container = try decoder.singleValueContainer()
-            if let x = try? container.decode(String.self) {
-                self = .string(x)
-                return
-            }
-            if let x = try? container.decode(Double.self) {
-                self = .number(x)
-                return
-            }
-            if let x = try? container.decode(Bool.self) {
-                self = .bool(x)
-                return
-            }
-            if container.decodeNil() {
-                self = .null
-                return
-            }
-            if let x = try? container.decode([JSONValue].self) {
-                self = .array(x)
-                return
-            }
-            if let x = try? container.decode([String: JSONValue].self) {
-                self = .object(x)
-                return
-            }
-            throw DecodingError.typeMismatch(JSONValue.self, DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Wrong type for JSONValue"))
-        }
-
-        func encode(to encoder: Encoder) throws {
-            var container = encoder.singleValueContainer()
-            switch self {
-            case .string(let x): try container.encode(x)
-            case .number(let x): try container.encode(x)
-            case .bool(let x): try container.encode(x)
-            case .null: try container.encodeNil()
-            case .array(let x): try container.encode(x)
-            case .object(let x): try container.encode(x)
-            }
-        }
-    }
-
-    struct AudioConfig: Codable {
-        let input: AudioFormat?
-        let output: AudioFormat?
-    }
-
-    struct AudioFormat: Codable {
-        let format: AudioFormatType?
-
-        enum CodingKeys: String, CodingKey {
-            case format
-        }
-    }
-
-    struct AudioFormatType: Codable {
-        let type: String // "audio/pcm"
-        let rate: Int // Sample rate
-    }
-
-    struct TurnDetection: Codable {
-        let type: String? // "server_vad"
-    }
-
-    struct ConversationItem: Codable {
-        let id: String?
-        let object: String?
-        let type: String // "message" or "function_call" or "function_call_output"
-        let status: String?
-        let role: String? // "user" or "assistant" or "system"
-        let content: [ContentItem]?
-        var tool_calls: [ToolCall]? = nil
-        
-        // For function_call_output
-        var call_id: String? = nil
-        var output: String? = nil
-        
-        // For function_call (if single item)
-        var name: String? = nil
-        var arguments: String? = nil
-    }
-
-    struct ContentItem: Codable {
-        let type: String // "input_text" or "input_audio" or "text" or "audio"
-        let text: String?
-        let transcript: String?
-        var tool_call_id: String? = nil
-    }
-
-    struct ToolCall: Codable {
-        let id: String
-        let type: String // "function"
-        let function: FunctionCall
-    }
-
-    struct FunctionCall: Codable {
-        let name: String
-        let arguments: String
-    }
-
-    struct ContentPart: Codable {
-        let type: String // "audio"
-        let transcript: String?
-    }
-
-    struct Response: Codable {
-        let id: String?
-        let object: String?
-        let output: [ConversationItem]?
-        let status: String?
-        let status_details: String?
-        let usage: Usage?
-    }
-
-    struct Usage: Codable {
-        let input_tokens: Int?
-        let input_token_details: TokenDetails?
-        let output_tokens: Int?
-        let output_token_details: TokenDetails?
-        let total_tokens: Int?
-    }
-
-    struct TokenDetails: Codable {
-        let text_tokens: Int?
-        let audio_tokens: Int?
-        let grok_tokens: Int?
-    }
-
-    struct Conversation: Codable {
-        let id: String?
-        let object: String?
-    }
-}
-
-// MARK: - XAI Service Extensions
-
-
-
-// MARK: - XAI Voice Service
+import OSLog
 
 class XAIVoiceService {
-    private let apiKey: String
     private let baseProxyURL: URL = Config.baseXAIProxyURL
     private let baseURL: URL = Config.baseXAIURL
     private var sessionURL: URL { baseProxyURL.appending(path: "v1/realtime/client_secrets") }
@@ -234,7 +19,7 @@ class XAIVoiceService {
     let sessionState: SessionState
 
     // Configuration
-    internal let voice = "Eve"
+    internal let voice = ConversationEvent.SessionConfig.Voice.Eve
     internal var instructions = """
     You are Gerald McGrokMode, the most elite, high-energy, and swaggy Executive Assistant to the CEO of XAI.
     Your job is to BE THE BEST EXECUTIVE ASSISTANT TO GIVE the "CEO Morning Brief" with maximum CHARISMA,  EFFICIENCY, AND CONCISENESS
@@ -271,16 +56,15 @@ class XAIVoiceService {
     
     
     """
-    internal let sampleRate = 24000 // Common sample rate for voice
+    internal let sampleRate = ConversationEvent.AudioFormatType.SampleRate.twentyFourKHz // Common sample rate for voice
 
     // Callbacks
     var onConnected: (() -> Void)?
     var onDisconnected: ((Error?) -> Void)?
-    var onMessageReceived: ((VoiceMessage) -> Void)?
+    var onMessageReceived: ((ConversationEvent) -> Void)?
     var onError: ((Error) -> Void)?
 
-    init(apiKey: String, sessionState: SessionState) {
-        self.apiKey = apiKey
+    init(sessionState: SessionState) {
         self.sessionState = sessionState
         self.urlSession = URLSession(configuration: .default)
     }
@@ -302,11 +86,7 @@ class XAIVoiceService {
         print("🔑 Request Headers:")
         if let headers = request.allHTTPHeaderFields {
             for (key, value) in headers {
-                if key.lowercased().contains("authorization") {
-                    print("🔑   \(key): Bearer ***\(apiKey.suffix(10))***") // Hide most of API key
-                } else {
-                    print("🔑   \(key): \(value)")
-                }
+                print("🔑   \(key): \(value)")
             }
         }
 
@@ -397,7 +177,7 @@ class XAIVoiceService {
 
         // Create WebSocket task with protocol headers
         var request = URLRequest(url: websocketURL)
-        request.setValue("realtime,openai-insecure-api-key.\(token.value),openai-beta.realtime-v1", forHTTPHeaderField: "Sec-WebSocket-Protocol")
+        request.setValue("Bearer \(token.value)", forHTTPHeaderField: "Authorization")
 
         webSocketTask = urlSession.webSocketTask(with: request)
         webSocketTask?.resume()
@@ -426,32 +206,32 @@ class XAIVoiceService {
 
     // MARK: - Session Configuration
 
-    func configureSession(tools: [VoiceMessage.ToolDefinition]? = nil) throws {
+    func configureSession(tools: [ConversationEvent.ToolDefinition]? = nil) throws {
         print("⚙️ Configuring voice session...")
 
-        let sessionConfig = VoiceMessage(
-            type: "session.update",
+        let sessionConfig = ConversationEvent(
+            type: .sessionUpdate,
             audio: nil,
             text: nil,
             delta: nil,
-            session: VoiceMessage.SessionConfig(
+            session: ConversationEvent.SessionConfig(
                 instructions: instructions + "\n\nToday's Date: \(DateFormatter.localizedString(from: Date(), dateStyle: .full, timeStyle: .none)).",
                 voice: voice,
-                audio: VoiceMessage.AudioConfig(
-                    input: VoiceMessage.AudioFormat(
-                        format: VoiceMessage.AudioFormatType(
-                            type: "audio/pcm",
+                audio: ConversationEvent.AudioConfig(
+                    input: ConversationEvent.AudioFormat(
+                        format: ConversationEvent.AudioFormatType(
+                            type: .audioPcm,
                             rate: sampleRate
                         )
                     ),
-                    output: VoiceMessage.AudioFormat(
-                        format: VoiceMessage.AudioFormatType(
-                            type: "audio/pcm",
+                    output: ConversationEvent.AudioFormat(
+                        format: ConversationEvent.AudioFormatType(
+                            type: .audioPcm,
                             rate: sampleRate
                         )
                     )
                 ),
-                turnDetection: VoiceMessage.TurnDetection(type: "server_vad"),
+                turnDetection: ConversationEvent.TurnDetection(type: .serverVad),
                 tools: tools,
                 tool_choice: tools != nil ? "auto" : nil
             ),
@@ -478,8 +258,8 @@ class XAIVoiceService {
 
     func sendAudioChunk(_ audioData: Data) throws {
         let base64Audio = audioData.base64EncodedString()
-        let message = VoiceMessage(
-            type: "input_audio_buffer.append",
+        let message = ConversationEvent(
+            type: .inputAudioBufferAppend,
             audio: base64Audio,
             text: nil,
             delta: nil,
@@ -503,8 +283,8 @@ class XAIVoiceService {
     }
 
     func commitAudioBuffer() throws {
-        let message = VoiceMessage(
-            type: "input_audio_buffer.commit",
+        let message = ConversationEvent(
+            type: .inputAudioBufferCommit,
             audio: nil,
             text: nil,
             delta: nil,
@@ -528,8 +308,8 @@ class XAIVoiceService {
     }
 
     func createResponse() throws {
-        let message = VoiceMessage(
-            type: "response.create",
+        let message = ConversationEvent(
+            type: .responseCreate,
             audio: nil,
             text: nil,
             delta: nil,
@@ -556,13 +336,13 @@ class XAIVoiceService {
         // Log response to SessionState
         sessionState.updateResponse(id: toolCallId, responseString: output, success: success)
         
-        let toolOutput = VoiceMessage(
-            type: "conversation.item.create",
+        let toolOutput = ConversationEvent(
+            type: .conversationItemCreate,
             audio: nil,
             text: nil,
             delta: nil,
             session: nil,
-            item: VoiceMessage.ConversationItem(
+            item: ConversationEvent.ConversationItem(
                 id: nil,
                 object: nil,
                 type: "function_call_output",
@@ -597,8 +377,8 @@ class XAIVoiceService {
 
     func sendTruncationEvent(itemId: String, audioEndMs: Int, contentIndex: Int = 0) throws {
         print("✂️ Truncating item \(itemId) at \(audioEndMs)ms")
-        let message = VoiceMessage(
-            type: "conversation.item.truncate",
+        let message = ConversationEvent(
+            type: .conversationItemTruncate,
             audio: nil,
             text: nil,
             delta: nil,
@@ -628,7 +408,7 @@ class XAIVoiceService {
 
     // MARK: - Message Handling
 
-    internal func sendMessage(_ message: VoiceMessage) throws {
+    internal func sendMessage(_ message: ConversationEvent) throws {
         guard let webSocketTask = webSocketTask, webSocketTask.state == .running else {
             throw XAIVoiceError.notConnected
         }
@@ -637,6 +417,7 @@ class XAIVoiceService {
         let messageString = String(data: jsonData, encoding: .utf8)!
 
         let wsMessage = URLSessionWebSocketTask.Message.string(messageString)
+        os_log("[Client] Sending event:\n\(messageString)")
         webSocketTask.send(wsMessage) { error in
             if let error = error {
                 self.onError?(error)
@@ -670,52 +451,47 @@ class XAIVoiceService {
     }
 
     private func handleTextMessage(_ text: String) {
-     
+        guard let message = try? JSONDecoder().decode(ConversationEvent.self, from: Data(text.utf8)) else {
+            os_log("[Grok] Received unanticipated message \(text)")
+            return
+        }
 
-        do {
-            let message = try JSONDecoder().decode(VoiceMessage.self, from: Data(text.utf8))
+        // Always call the message callback first
+        onMessageReceived?(message)
+        os_log("[Grok] Received message of type \(message.type.rawValue)")
 
-            // Always call the message callback first
-            onMessageReceived?(message)
+        // Then handle specific message types
+        switch message.type {
+        case .conversationCreated:
+            os_log("💬 Conversation created, configuring session...")
+            try? configureSession()
 
-            // Then handle specific message types
-            switch message.type {
-            case "conversation.created":
-                print("💬 Conversation created, configuring session...")
-                try? configureSession()
+        case .sessionUpdated:
+            os_log("✅ Session configured, ready for voice interaction")
+            onConnected?()
+            
+        case .responseFunctionCallArgumentsDone:
+             if let callId = message.call_id,
+                let name = message.name,
+                let arguments = message.arguments {
+                 
+                 os_log("📝 Logging tool call to SessionState: \(name)")
+                 let params: [String: Any]? = {
+                     guard let data = arguments.data(using: .utf8) else { return nil }
+                     return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+                 }()
+                 
+                 sessionState.addCall(id: callId, toolName: name, parameters: params ?? ["raw": arguments])
+             }
 
-            case "session.updated":
-                print("✅ Session configured, ready for voice interaction")
-                onConnected?()
-                
-            case "response.function_call_arguments.done":
-                 if let callId = message.call_id,
-                    let name = message.name,
-                    let arguments = message.arguments {
-                     
-                     print("📝 Logging tool call to SessionState: \(name)")
-                     let params: [String: Any]? = {
-                         guard let data = arguments.data(using: .utf8) else { return nil }
-                         return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-                     }()
-                     
-                     sessionState.addCall(id: callId, toolName: name, parameters: params ?? ["raw": arguments])
-                 }
-
-            default:
-                break
-            }
-
-        } catch {
-            print("❌ Failed to decode message: \(error)")
-            print("❌ Raw message that failed: \(text)")
-            onError?(error)
+        default:
+            break
         }
     }
 
     private func handleDataMessage(_ data: Data) {
         // Handle binary data if needed
-        print("📦 Received binary data: \(data.count) bytes")
+        os_log("📦 Received binary data: \(data.count) bytes")
     }
 
     // MARK: - Connection Management

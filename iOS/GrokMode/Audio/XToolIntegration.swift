@@ -15,13 +15,13 @@ struct XToolIntegration {
         XTool.supportedTools
     }
 
-    static func getToolDefinitions() -> [VoiceMessage.ToolDefinition] {
-        var definitions: [VoiceMessage.ToolDefinition] = []
+    static func getToolDefinitions() -> [ConversationEvent.ToolDefinition] {
+        var definitions: [ConversationEvent.ToolDefinition] = []
 
         // Add all X tools
         for tool in tools {
             if let schema = try? toolJSONSchema(for: tool) {
-                definitions.append(VoiceMessage.ToolDefinition(
+                definitions.append(ConversationEvent.ToolDefinition(
                     type: "function",
                     name: tool.rawValue,
                     description: tool.description,
@@ -34,13 +34,13 @@ struct XToolIntegration {
     }
     
     // Helper to convert internal JSONSchema to the JSONValue format OpenAI/XAIVoice expects
-    private static func toolJSONSchema(for tool: XTool) throws -> VoiceMessage.JSONValue {
+    private static func toolJSONSchema(for tool: XTool) throws -> ConversationEvent.JSONValue {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let data = try encoder.encode(tool.jsonSchema)
         
         // Decode into generic JSONValue
         let decoder = JSONDecoder()
-        return try decoder.decode(VoiceMessage.JSONValue.self, from: data)
+        return try decoder.decode(ConversationEvent.JSONValue.self, from: data)
     }
 }

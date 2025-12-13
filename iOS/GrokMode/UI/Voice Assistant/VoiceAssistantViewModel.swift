@@ -40,7 +40,6 @@ struct ConversationItem: Identifiable {
 }
 
 @Observable
-@MainActor
 class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
     // Permissions
     var micPermissionGranted = false
@@ -53,7 +52,7 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
 
     // Audio
     var isListening = false
-    var isGeraldSpeaking = false
+    var isGrokSpeaking = false
     var currentAudioLevel: Float = 0.0
 
     // Conversation
@@ -140,7 +139,7 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
         addSystemMessage("Connecting to XAI Voice...")
 
         // Initialize XAI service
-        xaiService = XAIVoiceService(apiKey: Config.xAiApiKey, sessionState: sessionState)
+        xaiService = XAIVoiceService(sessionState: sessionState)
 
         // Set up callbacks (already on main actor)
         xaiService?.onConnected = { [weak self] in
@@ -217,19 +216,19 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
                 try xaiService!.configureSession(tools: tools)
 
                 // Send context as a user message
-                let contextMessage = VoiceMessage(
-                    type: "conversation.item.create",
+                let contextMessage = ConversationEvent(
+                    type: .conversationItemCreate,
                     audio: nil,
                     text: nil,
                     delta: nil,
                     session: nil,
-                    item: VoiceMessage.ConversationItem(
+                    item: ConversationEvent.ConversationItem(
                         id: nil,
                         object: nil,
                         type: "message",
                         status: nil,
                         role: "user",
-                        content: [VoiceMessage.ContentItem(
+                        content: [ConversationEvent.ContentItem(
                             type: "input_text",
                             text: "SYSTEM CONTEXT: You have just searched for '\(self.scenarioTopic)' and found these recent tweets: \(contextString). Use this context for the conversation.",
                             transcript: nil
@@ -267,7 +266,7 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
     func disconnect() {
         xaiService?.disconnect()
         audioStreamer?.stopStreaming()
-        isGeraldSpeaking = false
+        isGrokSpeaking = false
         isListening = false
         isConnected = false
         isConnecting = false
@@ -281,7 +280,7 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
         // Stop any existing streams
         isListening = false
         audioStreamer?.stopStreaming()
-        isGeraldSpeaking = false
+        isGrokSpeaking = false
 
         // Disconnect existing service
         xaiService?.disconnect()
@@ -348,33 +347,33 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
 
     // MARK: - Message Handling
 
-    private func handleXAIMessage(_ message: VoiceMessage) {
+    private func handleXAIMessage(_ message: ConversationEvent) {
         switch message.type {
-        case "conversation.created":
+        case .conversationCreated:
             // Session initialized
             break
 
-        case "session.updated":
+        case .sessionUpdated:
             // Session configured
             break
 
-        case "response.created":
+        case .responseCreated:
             // Assistant started responding
             break
 
-        case "response.function_call_arguments.done":
+        case .responseFunctionCallArgumentsDone:
             if let callId = message.call_id,
                let name = message.name,
                let args = message.arguments {
-                let toolCall = VoiceMessage.ToolCall(
+                let toolCall = ConversationEvent.ToolCall(
                     id: callId,
                     type: "function",
-                    function: VoiceMessage.FunctionCall(name: name, arguments: args)
+                    function: ConversationEvent.FunctionCall(name: name, arguments: args)
                 )
                 handleToolCall(toolCall)
             }
 
-        case "response.output_item.added":
+        case .responseOutputItemAdded:
             if let item = message.item, let toolCalls = item.tool_calls {
                 for toolCall in toolCalls {
                     handleToolCall(toolCall)
@@ -387,7 +386,7 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
                 currentAudioStartTime = nil
             }
 
-        case "response.done":
+        case .responseDone:
             // Check for tool calls in completed response
             if let output = message.response?.output {
                 for item in output {
@@ -399,10 +398,10 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
                 }
             }
 
-        case "input_audio_buffer.speech_started":
+        case .inputAudioBufferSpeechStarted:
             // User started speaking
             audioStreamer?.stopPlayback()
-            isGeraldSpeaking = false
+            isGrokSpeaking = false
 
             // Handle truncation
             if let itemId = currentItemId, let startTime = currentAudioStartTime {
@@ -412,22 +411,22 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
                 currentAudioStartTime = nil
             }
 
-        case "input_audio_buffer.speech_stopped":
+        case .inputAudioBufferSpeechStopped:
             // User stopped speaking
             break
 
-        case "input_audio_buffer.committed":
+        case .inputAudioBufferCommitted:
             // Audio sent for processing
             break
 
-        case "response.output_audio.delta":
+        case .responseOutputAudioDelta:
             if let delta = message.delta, let audioData = Data(base64Encoded: delta) {
                 do {
                     try audioStreamer?.playAudio(audioData) // TODO: handle error
                 } catch {
                     os_log("Failed to play audio: \(error)")
                 }
-                isGeraldSpeaking = true
+                isGrokSpeaking = true
 
                 // Track start time of first audio chunk
                 if currentAudioStartTime == nil {
@@ -435,7 +434,7 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
                 }
             }
 
-        case "error":
+        case .error:
             if let errorText = message.text {
                 addSystemMessage("Error: \(errorText)")
             }
@@ -448,12 +447,16 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
     // MARK: - Tool Handling
 
     private func isSafeTool(_ functionName: String) -> Bool {
+        guard let _ = XTool(rawValue: functionName) else {
+            return true
+        }
+
         return functionName.hasPrefix("get") ||
                functionName.hasPrefix("search") ||
                functionName.hasPrefix("list")
     }
 
-    private func handleToolCall(_ toolCall: VoiceMessage.ToolCall) {
+    private func handleToolCall(_ toolCall: ConversationEvent.ToolCall) {
         let functionName = toolCall.function.name
 
         if isSafeTool(functionName) {
@@ -475,10 +478,10 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
         guard let toolCall = pendingToolCall else { return }
         pendingToolCall = nil
 
-        let voiceToolCall = VoiceMessage.ToolCall(
+        let voiceToolCall = ConversationEvent.ToolCall(
             id: toolCall.id,
             type: "function",
-            function: VoiceMessage.FunctionCall(
+            function: ConversationEvent.FunctionCall(
                 name: toolCall.functionName,
                 arguments: toolCall.arguments
             )
@@ -499,7 +502,7 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
         pendingToolCall = nil
     }
 
-    private func executeTool(_ toolCall: VoiceMessage.ToolCall) {
+    private func executeTool(_ toolCall: ConversationEvent.ToolCall) {
         Task {
             guard let data = toolCall.function.arguments.data(using: .utf8),
                   let parameters = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
@@ -569,7 +572,7 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
         print(response.prefix(500))
 
         do {
-            if toolName == "search_recent_tweets" || toolName == "search_all_tweets" || toolName == "get_tweets" || toolName == "get_tweet" || toolName == "get_user_liked_tweets" {
+            if let xTool = XTool(rawValue: toolName), xTool == .searchRecentTweets || xTool == .searchAllTweets || xTool == .getTweets || xTool == .getTweet || xTool == .getUserLikedTweets {
                 struct TweetResponse: Codable {
                     let data: [XTweet]?
                     let includes: Includes?
