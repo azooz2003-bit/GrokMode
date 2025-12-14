@@ -10,7 +10,6 @@ import JSONSchema
 
 struct XToolIntegration {
     
-    // Tools allowed for the CEO Demo scenario
     static var tools: [XTool] {
         XTool.supportedTools
     }
