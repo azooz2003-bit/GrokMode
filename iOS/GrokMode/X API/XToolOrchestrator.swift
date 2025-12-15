@@ -37,114 +37,6 @@ actor XToolOrchestrator {
         return userToken
     }
 
-    /// Determines if a tool requires OAuth 2.0 User Context authentication
-    private func requiresUserContext(_ tool: XTool) -> Bool {
-        switch tool {
-        // MARK: Posts/Tweets - Write Operations
-        case .createTweet, .deleteTweet:
-            return true
-
-        // MARK: Likes
-        case .likeTweet, .unlikeTweet:
-            return true
-
-        // MARK: Retweets - Write Operations
-        case .retweet, .unretweet:
-            return true
-
-        // MARK: Users - Manage Operations
-        case .followUser, .unfollowUser,
-             .muteUser, .unmuteUser,
-             .blockUser, .unblockUser,
-             .blockUserDMs, .unblockUserDMs:
-            return true
-
-        // MARK: Users - Private Data Lookups
-        case .getAuthenticatedUser,
-             .getMutedUsers,
-             .getBlockedUsers:
-            return true
-
-        // MARK: Lists - Write Operations
-        case .createList, .deleteList, .updateList,
-             .addListMember, .removeListMember,
-             .pinList, .unpinList:
-            return true
-
-        // MARK: Direct Messages - All Operations (private data)
-        case .createDMConversation,
-             .sendDMToConversation,
-             .sendDMToParticipant,
-             .getDMEvents,
-             .getConversationDMs,
-             .deleteDMEvent,
-             .getDMEventDetails:
-            return true
-
-        // MARK: Bookmarks - All Operations (private data)
-        case .addBookmark, .removeBookmark, .getUserBookmarks:
-            return true
-
-        // MARK: Community Notes - Write Operations
-        case .createNote, .deleteNote, .evaluateNote:
-            return true
-
-        // MARK: Public Read Operations - Use Bearer Token
-        // Posts/Tweets Lookups
-        case .getTweet, .getTweets,
-             .searchRecentTweets, .searchAllTweets,
-             .getRecentTweetCounts, .getAllTweetCounts:
-            return false
-
-        // Likes/Retweets Lookups
-        case .getLikingUsers, .getUserLikedTweets,
-             .getRetweetedBy, .getRetweets:
-            return false
-
-        // Users - Public Lookups
-        case .getUserById, .getUserByUsername,
-             .getUsersById, .getUsersByUsername,
-             .getUserFollowing, .getUserFollowers:
-            return false
-
-        // Lists - Read Operations
-        case .getList, .getListMembers,
-             .getListTweets, .getListFollowers:
-            return false
-
-        // Spaces - All Lookups
-        case .getSpace, .getSpaces,
-             .getSpacesByCreator, .getSpaceTweets,
-             .searchSpaces, .getSpaceBuyers:
-            return false
-
-        // Community Notes - Lookups
-        case .getNotesWritten, .getPostsEligibleForNotes:
-            return false
-
-        // MARK: Streaming - Conservative: use user context
-        case .streamFilteredTweets, .manageStreamRules,
-             .getStreamRules, .getStreamRuleCounts,
-             .streamSample, .streamSample10:
-            return true
-
-        // MARK: Compliance - Conservative: use user context
-        case .createComplianceJob, .getComplianceJob, .listComplianceJobs:
-            return true
-
-        // MARK: Media - Conservative: use user context
-        case .uploadMedia, .getMediaStatus,
-             .initializeChunkedUpload, .appendChunkedUpload,
-             .finalizeChunkedUpload, .createMediaMetadata,
-             .getMediaAnalytics:
-            return true
-
-        // MARK: Trends - Conservative: use bearer token for public data
-        case .getTrendsByWoeid, .getPersonalizedTrends:
-            return false
-        }
-    }
-
     public func executeTool(_ tool: XTool, parameters: [String: Any], id: String? = nil) async -> XToolCallResult {
         return await executeToolWithRetry(tool, parameters: parameters, id: id, attempt: 1)
     }
@@ -184,7 +76,7 @@ actor XToolOrchestrator {
             if httpResponse.statusCode >= 200 && httpResponse.statusCode < 300 {
                 let responseString = String(data: data, encoding: .utf8)
                 return .success(id: id, toolName: tool.name, response: responseString, statusCode: httpResponse.statusCode)
-            } else if httpResponse.statusCode == 401 && attempt == 1 && requiresUserContext(tool) {
+            } else if httpResponse.statusCode == 401 && attempt == 1 {
                 // 401 on first attempt - token might have been revoked or invalid
                 // Force logout and return clear error
                 AppLogger.auth.warning("TOOL CALL: 401 Unauthorized - User needs to authenticate")
@@ -258,12 +150,22 @@ actor XToolOrchestrator {
         case .createTweet:
             path = "/2/tweets"
             method = .post
+            bodyParams = parameters
 
-            var enrichedParams = parameters
-            if let _ = enrichedParams["quote_tweet_id"], enrichedParams["reply_settings"] == nil {
-                enrichedParams["reply_settings"] = "following"
-            }
-            bodyParams = enrichedParams
+        case .replyToTweet:
+            path = "/2/tweets"
+            method = .post
+            bodyParams = parameters
+
+        case .quoteTweet:
+            path = "/2/tweets"
+            method = .post
+            bodyParams = parameters
+
+        case .createPollTweet:
+            path = "/2/tweets"
+            method = .post
+            bodyParams = parameters
 
         case .deleteTweet:
             guard let id = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }

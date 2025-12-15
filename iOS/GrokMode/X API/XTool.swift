@@ -13,6 +13,9 @@ nonisolated
 enum XTool: String, CaseIterable, Identifiable {
     // MARK: - Posts/Tweets
     case createTweet = "create_tweet"
+    case replyToTweet = "reply_to_tweet"
+    case quoteTweet = "quote_tweet"
+    case createPollTweet = "create_poll_tweet"
     case deleteTweet = "delete_tweet"
     case getTweet = "get_tweet"
     case getTweets = "get_tweets"
@@ -128,6 +131,9 @@ enum XTool: String, CaseIterable, Identifiable {
         switch self {
         // Posts/Tweets
         case .createTweet: return "Create or edit a tweet"
+        case .replyToTweet: return "Reply to a specific tweet."
+        case .quoteTweet: return "Quote tweet a specific tweet."
+        case .createPollTweet: return "Create a poll tweet"
         case .deleteTweet: return "Delete a specific tweet by ID"
         case .getTweet: return "Get details of a specific tweet by ID"
         case .getTweets: return "Get multiple tweets by their IDs"
@@ -244,31 +250,13 @@ enum XTool: String, CaseIterable, Identifiable {
             return .object(
                 properties: [
                     "text": .string(description: "The text content of the tweet"),
-                    "reply": .object(
-                        properties: [
-                            "in_reply_to_tweet_id": .string(description: "Tweet ID to reply to"),
-                            "exclude_reply_user_ids": .array(description: "User IDs to exclude from reply", items: .string())
-                        ],
-                        required: ["in_reply_to_tweet_id"]
-                    ),
-                    "quote_tweet_id": .string(description: "Tweet ID to quote"),
-                    "media": .object(
-                        properties: [
-                            "media_ids": .array(description: "Media IDs to attach", items: .string()),
-                            "tagged_user_ids": .array(description: "IDs of users tagged in media", items: .string())
-                        ],
-                        required: ["media_ids"]
-                    ),
-                    "poll": .object(
-                        properties: [
-                            "options": .array(description: "Poll options, the text of a poll choice", items: .string()),
-                            "duration_minutes": .integer(description: "Poll duration in minutes"),
-                            "reply_settings": .string(description: "Settings to indicate who can reply to the Tweet.", enum: [.string("following"), .string("mentionedUsers"), .string("subscribers"), .string("verified")])
-                        ],
-                        required: ["options", "duration_minutes"]
-                    ),
-                    "direct_message_deep_link": .string(description: "Link to take the conversation from the public timeline to a private Direct Message."),
-                    "for_super_followers_only": .boolean(description: "Restrict to super followers only", default: false),
+//                    "media": .object(
+//                        properties: [
+//                            "media_ids": .array(description: "Media IDs to attach", items: .string()),
+//                            "tagged_user_ids": .array(description: "IDs of users tagged in media", items: .string())
+//                        ],
+//                        required: ["media_ids"]
+//                    ),
                     "reply_settings": .string(
                         description: "Who can reply to the tweet. Note: To allow everyone to reply, do not include this field in the request.",
                         enum: ["following", "mentionedUsers", "subscribers", "verified"]
@@ -276,7 +264,69 @@ enum XTool: String, CaseIterable, Identifiable {
                 ],
                 required: ["text"]
             )
-
+        case .replyToTweet:
+            return .object(
+                properties: [
+                    "text": .string(description: "The text content of the reply tweet."),
+                    "reply": .object(
+                        properties: [
+                            "in_reply_to_tweet_id": .string(description: "The ID of the tweet you would like to reply to."),
+//                            "exclude_reply_user_ids": .array(description: "User IDs to exclude from reply", items: .string())
+                        ],
+                        required: ["in_reply_to_tweet_id"]
+                    ),
+//                    "media": .object(
+//                        properties: [
+//                            "media_ids": .array(description: "Media IDs to attach", items: .string()),
+//                            "tagged_user_ids": .array(description: "IDs of users tagged in media", items: .string())
+//                        ],
+//                        required: ["media_ids"]
+//                    ),
+                    "reply_settings": .string(
+                        description: "Who can reply to the tweet. Note: To allow everyone to reply, do not include this field in the request.",
+                        enum: ["following", "mentionedUsers", "subscribers", "verified"]
+                    )
+                ],
+                required: ["text", "reply"]
+            )
+        case .quoteTweet:
+            return .object(
+                properties: [
+                    "text": .string(description: "The text content of the tweet"),
+                    "quote_tweet_id": .string(description: "The ID of the tweet you would like to quote tweet. Make sure that a tweet with this ID exists before passing it."),
+//                    "media": .object(
+//                        properties: [
+//                            "media_ids": .array(description: "Media IDs to attach", items: .string()),
+//                            "tagged_user_ids": .array(description: "IDs of users tagged in media", items: .string())
+//                        ],
+//                        required: ["media_ids"]
+//                    ),
+                    "reply_settings": .string(
+                        description: "Who can reply to the tweet. Note: To allow everyone to reply, do not include this field in the request.",
+                        enum: ["following", "mentionedUsers", "subscribers", "verified"]
+                    )
+                ],
+                required: ["text", "quote_tweet_id"]
+            )
+        case .createPollTweet:
+            return .object(
+                properties: [
+                    "text": .string(description: "The text content of the tweet"),
+                    "poll": .object(
+                        properties: [
+                            "options": .array(description: "An array of poll choices as strings. Minimum of 2 choices, maximum of 4 choices.", items: .string(description: "The text to display for the choice. A minimum of 1 character, and maximum of 25 characters is allowed per choice.")),
+                            "duration_minutes": .integer(description: "Poll duration in minutes. Values must be within this range: 5 <= x <= 10080."),
+                            "reply_settings": .string(description: "Settings to indicate who can reply to the poll.", enum: [.string("following"), .string("mentionedUsers"), .string("subscribers"), .string("verified")])
+                        ],
+                        required: ["options", "duration_minutes"]
+                    ),
+                    "reply_settings": .string(
+                        description: "Who can reply to the tweet. Note: To allow everyone to reply, do not include this field in the request.",
+                        enum: ["following", "mentionedUsers", "subscribers", "verified"]
+                    )
+                ],
+                required: ["text", "poll"]
+            )
         case .deleteTweet:
             return .object(
                 properties: [
@@ -1451,6 +1501,6 @@ extension XTool {
     }
 
     static var supportedTools: [Self] {
-        [.createTweet, .deleteTweet, .getTweet, .getTweets, .searchRecentTweets, .searchAllTweets, .getUserById, .getUserByUsername]
+        [.createTweet, .replyToTweet, .quoteTweet, .createPollTweet, .deleteTweet, .getTweet, .getTweets, .searchRecentTweets, .searchAllTweets, .getUserById, .getUserByUsername]
     }
 }

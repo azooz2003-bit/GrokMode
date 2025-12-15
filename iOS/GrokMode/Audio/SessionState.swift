@@ -38,7 +38,7 @@ enum ToolResponseContent: Codable {
                     let response = try decoder.decode(TweetResponse.self, from: data)
                     return .tweets(response.data)
 
-                case .createTweet:
+                case .createTweet, .replyToTweet, .quoteTweet, .createPollTweet:
                     struct CreateTweetResponse: Codable { let data: XTweet }
                     let response = try decoder.decode(CreateTweetResponse.self, from: data)
                     return .tweets([response.data])
