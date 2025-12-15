@@ -346,31 +346,42 @@ class VoiceAssistantViewModel: NSObject {
 
     // MARK: - Tool Handling
 
-    private func isSafeTool(_ functionName: String) -> Bool {
-        guard let _ = XTool(rawValue: functionName) else {
-            return true
-        }
-
-        return functionName.hasPrefix("get") ||
-               functionName.hasPrefix("search") ||
-               functionName.hasPrefix("list")
-    }
-
     private func handleToolCall(_ toolCall: ConversationEvent.ToolCall) {
         let functionName = toolCall.function.name
 
-        if isSafeTool(functionName) {
+        guard let tool = XTool(rawValue: functionName) else {
+            // Unknown tool - execute anyway
             executeTool(toolCall)
-        } else {
-            pendingToolCall = PendingToolCall(
-                id: toolCall.id,
-                functionName: functionName,
-                arguments: toolCall.function.arguments,
-                previewTitle: "Allow \(functionName)?",
-                previewContent: toolCall.function.arguments
-            )
+            return
+        }
+
+        switch tool.previewBehavior {
+        case .none:
+            // Safe tool - execute immediately
+            executeTool(toolCall)
+
+        case .requiresConfirmation:
+            // Show placeholder immediately
+            pendingToolCall = nil
 
             addConversationItem(.toolCall(name: functionName, status: .pending))
+
+            // Fetch rich preview asynchronously
+            Task { @MainActor in
+                let xToolOrchestrator = XToolOrchestrator(authService: authViewModel.authService)
+                let preview = await tool.generatePreview(from: toolCall.function.arguments, orchestrator: xToolOrchestrator)
+
+                // Update with rich preview if still pending
+                if let current = pendingToolCall, current.id == toolCall.id {
+                    pendingToolCall = PendingToolCall(
+                        id: toolCall.id,
+                        functionName: functionName,
+                        arguments: toolCall.function.arguments,
+                        previewTitle: preview?.title ?? "Allow \(functionName)?",
+                        previewContent: preview?.content ?? toolCall.function.arguments
+                    )
+                }
+            }
         }
     }
 

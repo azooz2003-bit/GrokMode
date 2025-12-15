@@ -9,6 +9,11 @@ import Foundation
 import JSONSchema
 internal import OrderedCollections
 
+enum PreviewBehavior {
+    case none                      // Safe tools, auto-execute
+    case requiresConfirmation      // Needs user approval with preview
+}
+
 nonisolated
 enum XTool: String, CaseIterable, Identifiable {
     // MARK: - Posts/Tweets
@@ -330,7 +335,7 @@ enum XTool: String, CaseIterable, Identifiable {
         case .deleteTweet:
             return .object(
                 properties: [
-                    "id": .string(description: "The tweet ID to delete")
+                    "id": .string(description: "The tweet ID to delete. Make sure that a tweet with this ID exists and belongs to the authenticated user before passing it.")
                 ],
                 required: ["id"]
             )
@@ -338,71 +343,7 @@ enum XTool: String, CaseIterable, Identifiable {
         case .getTweet:
             return .object(
                 properties: [
-                    "id": .string(description: "The tweet ID"),
-                    "tweet.fields": .array(
-                        description: "A comma separated list of Tweet fields to display.",
-                        items: .string(
-                            enum: [
-                                "article", "attachments", "author_id", "card_uri", "community_id",
-                                "context_annotations", "conversation_id", "created_at", "display_text_range",
-                                "edit_controls", "edit_history_tweet_ids", "entities", "geo", "id",
-                                "in_reply_to_user_id", "lang", "media_metadata", "non_public_metrics",
-                                "note_tweet", "organic_metrics", "possibly_sensitive", "promoted_metrics",
-                                "public_metrics", "referenced_tweets", "reply_settings", "scopes",
-                                "source", "suggested_source_links", "text", "withheld"
-                            ]
-                        )
-                    ),
-                    "expansions": .array(
-                        description: " The list of fields you can expand for a Tweet object. If the field has an ID, it can be expanded into a full object.",
-                        items: .string(
-                            enum: [
-                                "article.cover_media", "article.media_entities", "attachments.media_keys",
-                                "attachments.media_source_tweet", "attachments.poll_ids", "author_id",
-                                "edit_history_tweet_ids", "entities.mentions.username", "geo.place_id",
-                                "in_reply_to_user_id", "entities.note.mentions.username", "referenced_tweets.id",
-                                "referenced_tweets.id.attachments.media_keys", "referenced_tweets.id.author_id"
-                            ]
-                        )
-                    ),
-                    "media.fields": .array(
-                        description: "A comma separated list of Media fields to display",
-                        items: .string(
-                            enum: [
-                                "alt_text", "duration_ms", "height", "media_key", "non_public_metrics",
-                                "organic_metrics", "preview_image_url", "promoted_metrics", "public_metrics",
-                                "type", "url", "variants", "width"
-                            ]
-                        )
-                    ),
-                    "poll.fields": .array(
-                        description: "A comma separated list of Poll fields to display",
-                        items: .string(
-                            enum: [
-                                "duration_minutes", "end_datetime", "id", "options", "voting_status"
-                            ]
-                        )
-                    ),
-                    "user.fields": .array(
-                        description: "A comma separated list of User fields to display",
-                        items: .string(
-                            enum: [
-                                "affiliation", "confirmed_email", "connection_status", "created_at", "description",
-                                "entities", "id", "is_identity_verified", "location", "most_recent_tweet_id",
-                                "name", "parody", "pinned_tweet_id", "profile_banner_url", "profile_image_url",
-                                "protected", "public_metrics", "receives_your_dm", "subscription", "subscription_type",
-                                "url", "username", "verified", "verified_followers_count", "verified_type", "withheld"
-                            ]
-                        )
-                    ),
-                    "place.fields": .array(
-                        description: "A comma separated list of Place fields to display",
-                        items: .string(
-                            enum: [
-                                "contained_within", "country", "country_code", "full_name", "geo", "id", "name", "place_type"
-                            ]
-                        )
-                    )
+                    "id": .string(description: "The tweet ID")
                 ],
                 required: ["id"]
             )
@@ -1496,6 +1437,190 @@ enum XTool: String, CaseIterable, Identifiable {
 
 // MARK: - XTool Extensions
 extension XTool {
+    var previewBehavior: PreviewBehavior {
+        switch self {
+        // Write operations require confirmation
+        case .createTweet, .replyToTweet, .quoteTweet, .createPollTweet, .deleteTweet,
+             .likeTweet, .unlikeTweet, .retweet, .unretweet:
+            return .requiresConfirmation
+
+        // Read-only operations are safe
+        default:
+            return .none
+        }
+    }
+
+    func generatePreview(from arguments: String, orchestrator: XToolOrchestrator) async -> (title: String, content: String)? {
+        guard previewBehavior == .requiresConfirmation else { return nil }
+
+        // Parse JSON arguments
+        guard let data = arguments.data(using: .utf8),
+              let params = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return (title: "Allow \(name)?", content: "Unable to parse parameters")
+        }
+
+        // Tool-specific formatting
+        switch self {
+        case .createTweet:
+            let text = params["text"] as? String ?? ""
+            return (title: "Post Tweet", content: "\"\(text)\"")
+
+        case .replyToTweet:
+            let text = params["text"] as? String ?? ""
+
+            if let replyObj = params["reply"] as? [String: Any],
+               let replyToId = replyObj["in_reply_to_tweet_id"] as? String {
+                // Fetch the tweet being replied to with author info
+                let result = await orchestrator.executeTool(.getTweet, parameters: ["id": replyToId])
+
+                if result.success,
+                   let responseData = result.response?.data(using: .utf8),
+                   let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+                   let tweetData = json["data"] as? [String: Any],
+                   let originalText = tweetData["text"] as? String {
+
+                    // Extract username from expanded includes
+                    var username = "user"
+                    if let includes = json["includes"] as? [String: Any],
+                       let users = includes["users"] as? [[String: Any]],
+                       let user = users.first,
+                       let handle = user["username"] as? String {
+                        username = handle
+                    }
+
+                    let truncatedOriginal = originalText.count > 60 ? "\(originalText.prefix(60))..." : originalText
+                    return (
+                        title: "Reply to @\(username)",
+                        content: "Original: \"\(truncatedOriginal)\"\n\n↩️ Your reply: \"\(text)\""
+                    )
+                }
+            }
+            return (title: "Reply to Tweet", content: "\"\(text)\"")
+
+        case .quoteTweet:
+            let text = params["text"] as? String ?? ""
+            let quoteId = params["quote_tweet_id"] as? String ?? ""
+
+            // Fetch the tweet being quoted with author info
+            let result = await orchestrator.executeTool(.getTweet, parameters: ["id": quoteId])
+
+            if result.success,
+               let responseData = result.response?.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let tweetData = json["data"] as? [String: Any],
+               let originalText = tweetData["text"] as? String {
+
+                // Extract username from expanded includes
+                var username = "user"
+                if let includes = json["includes"] as? [String: Any],
+                   let users = includes["users"] as? [[String: Any]],
+                   let user = users.first,
+                   let handle = user["username"] as? String {
+                    username = handle
+                }
+
+                let truncatedOriginal = originalText.count > 60 ? "\(originalText.prefix(60))..." : originalText
+                return (
+                    title: "Quote @\(username)",
+                    content: "Quoting: \"\(truncatedOriginal)\"\n\n🔁 Your quote: \"\(text)\""
+                )
+            }
+            return (title: "Quote Tweet", content: "\"\(text)\"")
+
+        case .createPollTweet:
+            let text = params["text"] as? String ?? ""
+            if let pollObj = params["poll"] as? [String: Any],
+               let options = pollObj["options"] as? [String],
+               let duration = pollObj["duration_minutes"] as? Int {
+                let optionsText = options.enumerated().map { "\($0 + 1). \($1)" }.joined(separator: "\n")
+                return (title: "Create Poll", content: "\"\(text)\"\n\n📊 Poll options:\n\(optionsText)\n\n⏱ Duration: \(duration) minutes")
+            }
+            return (title: "Create Poll", content: "\"\(text)\"")
+
+        case .deleteTweet:
+            let id = params["id"] as? String ?? ""
+
+            // Fetch the tweet to be deleted
+            let result = await orchestrator.executeTool(.getTweet, parameters: ["id": id])
+
+            if result.success,
+               let responseData = result.response?.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let tweetData = json["data"] as? [String: Any],
+               let tweetText = tweetData["text"] as? String {
+                return (title: "Delete Tweet", content: "🗑️ \"\(tweetText)\"")
+            }
+            return (title: "Delete Tweet", content: "🗑️ Delete this tweet?")
+
+        case .likeTweet:
+            let id = params["tweet_id"] as? String ?? ""
+
+            // Fetch the tweet to be liked
+            let result = await orchestrator.executeTool(.getTweet, parameters: ["id": id])
+
+            if result.success,
+               let responseData = result.response?.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let tweetData = json["data"] as? [String: Any],
+               let tweetText = tweetData["text"] as? String {
+                let truncated = tweetText.count > 60 ? "\(tweetText.prefix(60))..." : tweetText
+                return (title: "Like Tweet", content: "❤️ \"\(truncated)\"")
+            }
+            return (title: "Like Tweet", content: "❤️ Like this tweet?")
+
+        case .unlikeTweet:
+            let id = params["tweet_id"] as? String ?? ""
+
+            // Fetch the tweet to be unliked
+            let result = await orchestrator.executeTool(.getTweet, parameters: ["id": id])
+
+            if result.success,
+               let responseData = result.response?.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let tweetData = json["data"] as? [String: Any],
+               let tweetText = tweetData["text"] as? String {
+                let truncated = tweetText.count > 60 ? "\(tweetText.prefix(60))..." : tweetText
+                return (title: "Unlike Tweet", content: "💔 \"\(truncated)\"")
+            }
+            return (title: "Unlike Tweet", content: "💔 Unlike this tweet?")
+
+        case .retweet:
+            let id = params["tweet_id"] as? String ?? ""
+
+            // Fetch the tweet to be retweeted
+            let result = await orchestrator.executeTool(.getTweet, parameters: ["id": id])
+
+            if result.success,
+               let responseData = result.response?.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let tweetData = json["data"] as? [String: Any],
+               let tweetText = tweetData["text"] as? String {
+                let truncated = tweetText.count > 60 ? "\(tweetText.prefix(60))..." : tweetText
+                return (title: "Retweet", content: "🔁 \"\(truncated)\"")
+            }
+            return (title: "Retweet", content: "🔁 Retweet this?")
+
+        case .unretweet:
+            let id = params["source_tweet_id"] as? String ?? ""
+
+            // Fetch the tweet to be unretweeted
+            let result = await orchestrator.executeTool(.getTweet, parameters: ["id": id])
+
+            if result.success,
+            let responseData = result.response?.data(using: .utf8),
+            let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+            let tweetData = json["data"] as? [String: Any],
+            let tweetText = tweetData["text"] as? String {
+                let truncated = tweetText.count > 60 ? "\(tweetText.prefix(60))..." : tweetText
+                return (title: "Undo Retweet", content: "↩️ \"\(truncated)\"")
+            }
+            return (title: "Undo Retweet", content: "↩️ Undo retweet?")
+
+        default:
+            return (title: "Allow \(name)?", content: arguments)
+        }
+    }
+
     static func getToolByName(_ name: String) -> XTool? {
         return XTool.allCases.first { $0.name == name }
     }
