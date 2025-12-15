@@ -11,7 +11,7 @@ import Combine
 import OSLog
 
 @Observable
-class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
+class VoiceAssistantViewModel: NSObject {
     // State
     var micPermission: MicPermissionState = .checking
     var voiceSessionState: VoiceSessionState = .disconnected
@@ -36,7 +36,6 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
     private var currentAudioStartTime: Date?
 
     // Configuration
-    private let scenarioTopic = "Grok"
     private let serverSampleRate: ConversationEvent.AudioFormatType.SampleRate = .twentyFourKHz
 
     // X Auth - computed properties from AuthViewModel
@@ -244,44 +243,6 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
             voiceSessionState = .connected
         }
         currentAudioLevel = 0.0  // Reset waveform to baseline
-    }
-
-    // MARK: - AudioStreamerDelegate
-
-    nonisolated func audioStreamerDidReceiveAudioData(_ data: Data) {
-        Task { @MainActor in
-            // Only send audio if we're connected
-            guard voiceSessionState.isConnected else {
-                stopListening()
-                return
-            }
-
-            do {
-                try xaiService?.sendAudioChunk(data)
-            } catch {
-                AppLogger.audio.error("Failed to send audio chunk: \(error.localizedDescription)")
-                // Stop streaming to prevent error cascade
-                stopListening()
-            }
-        }
-    }
-
-    nonisolated func audioStreamerDidDetectSpeechStart() {
-        Task { @MainActor in
-            // Speech detection handled automatically
-        }
-    }
-
-    nonisolated func audioStreamerDidDetectSpeechEnd() {
-        Task { @MainActor in
-            try? self.xaiService?.commitAudioBuffer()
-        }
-    }
-
-    nonisolated func audioStreamerDidUpdateAudioLevel(_ level: Float) {
-        Task { @MainActor in
-            self.currentAudioLevel = level
-        }
     }
 
     // MARK: - Message Handling
@@ -612,11 +573,47 @@ class VoiceAssistantViewModel: NSObject, AudioStreamerDelegate {
 
     // MARK: - X Auth
 
-    func loginWithX() async throws {
-        try await authViewModel.login()
-    }
-
     func logoutX() async {
         await authViewModel.logout()
+    }
+}
+
+// MARK: AudioStreamerDelegate
+
+extension VoiceAssistantViewModel: AudioStreamerDelegate {
+    nonisolated func audioStreamerDidReceiveAudioData(_ data: Data) {
+        Task { @MainActor in
+            // Only send audio if we're connected
+            guard voiceSessionState.isConnected else {
+                stopListening()
+                return
+            }
+
+            do {
+                try xaiService?.sendAudioChunk(data)
+            } catch {
+                AppLogger.audio.error("Failed to send audio chunk: \(error.localizedDescription)")
+                // Stop streaming to prevent error cascade
+                stopListening()
+            }
+        }
+    }
+
+    nonisolated func audioStreamerDidDetectSpeechStart() {
+        Task { @MainActor in
+            // Speech detection handled automatically
+        }
+    }
+
+    nonisolated func audioStreamerDidDetectSpeechEnd() {
+        Task { @MainActor in
+            try? self.xaiService?.commitAudioBuffer()
+        }
+    }
+
+    nonisolated func audioStreamerDidUpdateAudioLevel(_ level: Float) {
+        Task { @MainActor in
+            self.currentAudioLevel = level
+        }
     }
 }
