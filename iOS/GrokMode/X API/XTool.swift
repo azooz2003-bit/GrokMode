@@ -1242,11 +1242,48 @@ extension XTool {
     var previewBehavior: PreviewBehavior {
         switch self {
         // Write operations require confirmation
-        case .createTweet, .replyToTweet, .quoteTweet, .createPollTweet, .deleteTweet,
-             .likeTweet, .unlikeTweet, .retweet, .unretweet:
+
+        // Posts/Tweets
+        case .createTweet, .replyToTweet, .quoteTweet, .createPollTweet, .deleteTweet:
             return .requiresConfirmation
 
-        // Read-only operations are safe
+        // Likes & Retweets
+        case .likeTweet, .unlikeTweet, .retweet, .unretweet:
+            return .requiresConfirmation
+
+        // Follow/Unfollow
+        case .followUser, .unfollowUser:
+            return .requiresConfirmation
+
+        // Mute/Unmute
+        case .muteUser, .unmuteUser:
+            return .requiresConfirmation
+
+        // Block/Unblock
+        case .blockUser, .unblockUser, .blockUserDMs, .unblockUserDMs:
+            return .requiresConfirmation
+
+        // Lists
+        case .createList, .deleteList, .updateList, .addListMember, .removeListMember, .pinList, .unpinList:
+            return .requiresConfirmation
+
+        // Direct Messages
+        case .createDMConversation, .sendDMToConversation, .sendDMToParticipant, .deleteDMEvent:
+            return .requiresConfirmation
+
+        // Bookmarks
+        case .addBookmark, .removeBookmark:
+            return .requiresConfirmation
+
+        // Stream Rules
+        case .manageStreamRules:
+            return .requiresConfirmation
+
+        // Compliance
+        case .createComplianceJob:
+            return .requiresConfirmation
+
+        // Read-only operations are safe (searches, gets, streams, etc.)
         default:
             return .none
         }
