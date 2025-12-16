@@ -306,14 +306,19 @@ class VoiceAssistantViewModel: NSObject {
             }
 
         case .inputAudioBufferSpeechStopped:
-            // User stopped speaking
-            break
+            // User stopped speaking (server-side VAD - faster than local)
+            voiceSessionState = .connected
 
         case .inputAudioBufferCommitted:
             // Audio sent for processing
             break
 
         case .responseOutputAudioDelta:
+            guard !voiceSessionState.isListening else {
+                AppLogger.audio.debug("User speaking, skipping Grok audio")
+                return
+            }
+
             if let delta = message.delta, let audioData = Data(base64Encoded: delta) {
                 do {
                     try audioStreamer?.playAudio(audioData)
@@ -613,8 +618,8 @@ extension VoiceAssistantViewModel: AudioStreamerDelegate {
         Task { @MainActor in
             // Speech detection handled automatically
             // User started speaking
-            audioStreamer?.stopPlayback()
             voiceSessionState = .listening
+            audioStreamer?.stopPlayback()
 
             // Handle truncation
             if let itemId = currentItemId, let startTime = currentAudioStartTime {
@@ -628,6 +633,7 @@ extension VoiceAssistantViewModel: AudioStreamerDelegate {
 
     nonisolated func audioStreamerDidDetectSpeechEnd() {
         Task { @MainActor in
+            voiceSessionState = .connected
             try? self.xaiService?.commitAudioBuffer()
         }
     }

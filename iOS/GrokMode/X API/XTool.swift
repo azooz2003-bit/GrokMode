@@ -365,8 +365,6 @@ enum XTool: String, CaseIterable, Identifiable {
                     "since_id": .string(description: "Tweet ID for filtering results. Returns results with a Post ID greater than (that is, more recent than) the specified ID."),
                     "until_id": .string(description: "Tweet ID for filtering results. Returns results with a Post ID less than (that is, older than) the specified ID."),
                     "max_results": .integer(description: "The maximum number of search results to be returned by a request. Should be at least 10 and at most 100, otherwise API will return error.", minimum: 10, maximum: 100),
-                    "next_token": .string(description: "This parameter is used to get the next 'page' of results. The value used with the parameter is pulled directly from the response provided by the API, and should not be modified. "),
-                    "pagination_token": .string(description: "This parameter is used to get the next 'page' of results. The value used with the parameter is pulled directly from the response provided by the API, and should not be modified."),
                     "sort_order": .string(description: "This order in which to return results.", enum: ["recency", "relevancy"]),
                 ],
                 required: ["query"]
@@ -381,8 +379,6 @@ enum XTool: String, CaseIterable, Identifiable {
                     "since_id": .string(description: "Tweet ID for filtering results. Returns results with a Post ID greater than (that is, more recent than) the specified ID."),
                     "until_id": .string(description: "Tweet ID for filtering results. Returns results with a Post ID less than (that is, older than) the specified ID."),
                     "max_results": .integer(description: "The maximum number of search results to be returned by a request. Should be at least 10 and at most 500, otherwise API will return error.", minimum: 10, maximum: 500),
-                    "next_token": .string(description: "This parameter is used to get the next 'page' of results. The value used with the parameter is pulled directly from the response provided by the API, and should not be modified. "),
-                    "pagination_token": .string(description: "This parameter is used to get the next 'page' of results. The value used with the parameter is pulled directly from the response provided by the API, and should not be modified."),
                     "sort_order": .string(description: "This order in which to return results.", enum: ["recency", "relevancy"]),
                 ],
                 required: ["query"]
@@ -550,7 +546,6 @@ enum XTool: String, CaseIterable, Identifiable {
                 properties: [
                     "id": .string(description: "The user ID"),
                     "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 1000),
-                    "pagination_token": .string(description: "Pagination token")
                 ],
                 required: ["id"]
             )
@@ -578,7 +573,6 @@ enum XTool: String, CaseIterable, Identifiable {
                 properties: [
                     "id": .string(description: "The user ID"),
                     "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 1000),
-                    "pagination_token": .string(description: "Pagination token")
                 ],
                 required: ["id"]
             )
@@ -653,7 +647,6 @@ enum XTool: String, CaseIterable, Identifiable {
                 properties: [
                     "id": .string(description: "The user ID"),
                     "max_results": .integer(description: "Maximum results", minimum: 5, maximum: 100),
-                    "pagination_token": .string(description: "Pagination token")
                 ],
                 required: ["id"]
             )
@@ -664,7 +657,6 @@ enum XTool: String, CaseIterable, Identifiable {
                 properties: [
                     "id": .string(description: "The tweet ID"),
                     "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100),
-                    "pagination_token": .string(description: "Pagination token")
                 ],
                 required: ["id"]
             )
@@ -692,7 +684,6 @@ enum XTool: String, CaseIterable, Identifiable {
                 properties: [
                     "id": .string(description: "The tweet ID"),
                     "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100),
-                    "pagination_token": .string(description: "Pagination token")
                 ],
                 required: ["id"]
             )
@@ -740,7 +731,6 @@ enum XTool: String, CaseIterable, Identifiable {
                 properties: [
                     "id": .string(description: "The list ID"),
                     "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100),
-                    "pagination_token": .string(description: "Pagination token")
                 ],
                 required: ["id"]
             )
@@ -768,7 +758,6 @@ enum XTool: String, CaseIterable, Identifiable {
                 properties: [
                     "id": .string(description: "The list ID"),
                     "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100),
-                    "pagination_token": .string(description: "Pagination token")
                 ],
                 required: ["id"]
             )
@@ -861,7 +850,6 @@ enum XTool: String, CaseIterable, Identifiable {
             return .object(
                 properties: [
                     "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100),
-                    "pagination_token": .string(description: "Pagination token"),
                     "event_types": .string(description: "Comma-separated event types")
                 ]
             )
@@ -871,7 +859,6 @@ enum XTool: String, CaseIterable, Identifiable {
                 properties: [
                     "id": .string(description: "Conversation ID"),
                     "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100),
-                    "pagination_token": .string(description: "Pagination token"),
                     "event_types": .string(description: "Comma-separated event types")
                 ],
                 required: ["id"]
@@ -917,7 +904,6 @@ enum XTool: String, CaseIterable, Identifiable {
                 properties: [
                     "id": .string(description: "The user ID"),
                     "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100),
-                    "pagination_token": .string(description: "Pagination token")
                 ],
                 required: ["id"]
             )
@@ -1018,7 +1004,6 @@ enum XTool: String, CaseIterable, Identifiable {
             return .object(
                 properties: [
                     "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100),
-                    "pagination_token": .string(description: "Pagination token")
                 ]
             )
 
@@ -1026,7 +1011,6 @@ enum XTool: String, CaseIterable, Identifiable {
             return .object(
                 properties: [
                     "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100),
-                    "pagination_token": .string(description: "Pagination token")
                 ]
             )
 
