@@ -89,8 +89,6 @@ class VoiceAssistantViewModel: NSObject {
     }
 
     func connect() {
-        guard canConnect else { return }
-
         voiceSessionState = .connecting
 
         addSystemMessage("Connecting to XAI Voice...")
@@ -118,7 +116,7 @@ class VoiceAssistantViewModel: NSObject {
                 AppLogger.voice.error("XAI Error: \(error.localizedDescription)")
 
                 // Stop audio streaming immediately to prevent cascade of errors
-                self?.stopListening()
+                self?.stopSession()
 
                 self?.voiceSessionState = .error(error.localizedDescription)
                 self?.addSystemMessage("Error: \(error.localizedDescription)")
@@ -194,10 +192,10 @@ class VoiceAssistantViewModel: NSObject {
     }
 
     func disconnect() {
+        isSessionActivated = false
         xaiService?.disconnect()
         audioStreamer?.stopStreaming()
         voiceSessionState = .disconnected
-        isSessionActivated = false
 
         addSystemMessage("Disconnected")
     }
@@ -217,12 +215,10 @@ class VoiceAssistantViewModel: NSObject {
 
     // MARK: - Audio Streaming
 
-    func startListening() {
-        guard voiceSessionState.isConnected else { return }
-
-        // Set state immediately for instant UI feedback
+    func startSession() {
+        // Already connected, start listening
         isSessionActivated = true
-        voiceSessionState = .listening
+        connect()
 
         // Start audio asynchronously on dedicated audio queue to avoid blocking main thread
         audioStreamer?.startStreamingAsync { [weak self] error in
@@ -235,13 +231,8 @@ class VoiceAssistantViewModel: NSObject {
         }
     }
 
-    func stopListening() {
-        isSessionActivated = false
-        audioStreamer?.stopStreaming()
-        // Return to connected state if still connected, otherwise keep current state
-        if voiceSessionState.isConnected {
-            voiceSessionState = .connected
-        }
+    func stopSession() {
+        self.disconnect()
         currentAudioLevel = 0.0  // Reset waveform to baseline
     }
 
@@ -285,6 +276,9 @@ class VoiceAssistantViewModel: NSObject {
                 currentItemId = item.id
                 currentAudioStartTime = nil
             }
+
+        case .conversationItemAdded:
+            break
 
         case .responseDone:
             // Check for tool calls in completed response
@@ -601,7 +595,7 @@ extension VoiceAssistantViewModel: AudioStreamerDelegate {
         Task { @MainActor in
             // Only send audio if we're connected
             guard voiceSessionState.isConnected else {
-                stopListening()
+                stopSession()
                 return
             }
 
@@ -610,7 +604,7 @@ extension VoiceAssistantViewModel: AudioStreamerDelegate {
             } catch {
                 AppLogger.audio.error("Failed to send audio chunk: \(error.localizedDescription)")
                 // Stop streaming to prevent error cascade
-                stopListening()
+                stopSession()
             }
         }
     }
@@ -618,6 +612,17 @@ extension VoiceAssistantViewModel: AudioStreamerDelegate {
     nonisolated func audioStreamerDidDetectSpeechStart() {
         Task { @MainActor in
             // Speech detection handled automatically
+            // User started speaking
+            audioStreamer?.stopPlayback()
+            voiceSessionState = .listening
+
+            // Handle truncation
+            if let itemId = currentItemId, let startTime = currentAudioStartTime {
+                let elapsed = Int(Date().timeIntervalSince(startTime) * 1000)
+                try? xaiService?.sendTruncationEvent(itemId: itemId, audioEndMs: elapsed)
+                currentItemId = nil
+                currentAudioStartTime = nil
+            }
         }
     }
 

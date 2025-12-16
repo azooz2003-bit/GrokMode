@@ -127,22 +127,7 @@ class XAIVoiceService {
 
         receiveMessages()
 
-        try await waitForConnection()
-
         AppLogger.voice.info("WebSocket connected successfully")
-    }
-
-    private func waitForConnection() async throws {
-        // Simple timeout-based wait for connection
-        let timeout: TimeInterval = 10.0
-        let startTime = Date()
-
-        while webSocketTask?.state != .running {
-            if Date().timeIntervalSince(startTime) > timeout {
-                throw XAIVoiceError.connectionTimeout
-            }
-            try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
-        }
     }
 
     // MARK: - Session Configuration

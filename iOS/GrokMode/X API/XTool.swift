@@ -541,8 +541,6 @@ enum XTool: String, CaseIterable, Identifiable {
             return .object(
                 properties: [
                     "id": .string(description: "The user ID"),
-                    "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 1000),
-                    "pagination_token": .string(description: "Pagination token")
                 ],
                 required: ["id"]
             )

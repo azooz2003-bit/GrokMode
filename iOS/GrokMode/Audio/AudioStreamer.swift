@@ -176,18 +176,19 @@ class AudioStreamer: NSObject {
     }
 
     func stopStreaming() {
-        audioQueue.sync {
-            guard isStreaming else { return }
+        audioQueue.async {
+            guard self.isStreaming else { return }
 
             // Don't fully stop the engine if we want to keep playing clean tails, but typically we stop.
             // For full session end:
-            audioEngine.stop()
-            inputNode.removeTap(onBus: 0)
-            playerNode.stop()
+            self.audioEngine.stop()
+            self.inputNode.removeTap(onBus: 0)
+            self.playerNode.stop()
+            self.playerNode.reset() // Clear all scheduled buffers
 
-            hasTapInstalled = false
-            speechDetected = false
-            silenceCounter = 0
+            self.hasTapInstalled = false
+            self.speechDetected = false
+            self.silenceCounter = 0
         }
 
         AppLogger.audio.info("✅ Audio streaming stopped")
@@ -197,6 +198,7 @@ class AudioStreamer: NSObject {
     func stopPlayback() {
         if playerNode.isPlaying {
             playerNode.stop()
+            playerNode.reset() // Clear all scheduled buffers
         }
         AppLogger.audio.info("🛑 Playback interrupted by user")
     }
