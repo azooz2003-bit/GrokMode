@@ -456,7 +456,6 @@ class VoiceAssistantViewModel: NSObject {
                 try? xaiService?.createResponse()
 
                 addConversationItem(.toolCall(name: toolCall.function.name, status: .executed(success: isSuccess)))
-                pendingToolCall = nil
             }
         }
     }
