@@ -1386,6 +1386,6 @@ extension XTool {
     }
 
     static var supportedTools: [Self] {
-        [.createTweet, .replyToTweet, .quoteTweet, .createPollTweet, .deleteTweet, .getTweet, .getTweets, .searchRecentTweets, .getUserById, .getUserByUsername]
+        [.createTweet, .replyToTweet, .quoteTweet, .createPollTweet, .deleteTweet, .getTweet, .getTweets, .searchRecentTweets, .getUserById, .getUserByUsername, .sendDMToParticipant, .sendDMToConversation]
     }
 }
