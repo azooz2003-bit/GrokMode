@@ -417,14 +417,7 @@ enum XTool: String, CaseIterable, Identifiable {
         // MARK: - Streaming
         case .streamFilteredTweets:
             return .object(
-                properties: [
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "media.fields": .string(description: "Comma-separated list of media fields"),
-                    "place.fields": .string(description: "Comma-separated list of place fields"),
-                    "poll.fields": .string(description: "Comma-separated list of poll fields"),
-                    "tweet.fields": .string(description: "Comma-separated list of tweet fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields")
-                ]
+                properties: [:]
             )
 
         case .manageStreamRules:
@@ -498,10 +491,7 @@ enum XTool: String, CaseIterable, Identifiable {
         case .getUsersById:
             return .object(
                 properties: [
-                    "ids": .array(description: "User IDs", items: .string()),
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "tweet.fields": .string(description: "Comma-separated list of tweet fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields")
+                    "ids": .array(description: "User IDs", items: .string())
                 ],
                 required: ["ids"]
             )
@@ -509,21 +499,14 @@ enum XTool: String, CaseIterable, Identifiable {
         case .getUsersByUsername:
             return .object(
                 properties: [
-                    "usernames": .array(description: "Usernames without @", items: .string()),
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "tweet.fields": .string(description: "Comma-separated list of tweet fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields")
+                    "usernames": .array(description: "Usernames without @", items: .string())
                 ],
                 required: ["usernames"]
             )
 
         case .getAuthenticatedUser:
             return .object(
-                properties: [
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "tweet.fields": .string(description: "Comma-separated list of tweet fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields")
-                ]
+                properties: [:]
             )
 
         case .getUserFollowing:
@@ -531,10 +514,7 @@ enum XTool: String, CaseIterable, Identifiable {
                 properties: [
                     "id": .string(description: "The user ID"),
                     "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 1000),
-                    "pagination_token": .string(description: "Pagination token"),
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "tweet.fields": .string(description: "Comma-separated list of tweet fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields")
+                    "pagination_token": .string(description: "Pagination token")
                 ],
                 required: ["id"]
             )
@@ -562,10 +542,7 @@ enum XTool: String, CaseIterable, Identifiable {
                 properties: [
                     "id": .string(description: "The user ID"),
                     "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 1000),
-                    "pagination_token": .string(description: "Pagination token"),
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "tweet.fields": .string(description: "Comma-separated list of tweet fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields")
+                    "pagination_token": .string(description: "Pagination token")
                 ],
                 required: ["id"]
             )
@@ -575,10 +552,7 @@ enum XTool: String, CaseIterable, Identifiable {
                 properties: [
                     "id": .string(description: "The user ID"),
                     "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 1000),
-                    "pagination_token": .string(description: "Pagination token"),
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "tweet.fields": .string(description: "Comma-separated list of tweet fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields")
+                    "pagination_token": .string(description: "Pagination token")
                 ],
                 required: ["id"]
             )
@@ -606,10 +580,7 @@ enum XTool: String, CaseIterable, Identifiable {
                 properties: [
                     "id": .string(description: "The user ID"),
                     "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 1000),
-                    "pagination_token": .string(description: "Pagination token"),
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "tweet.fields": .string(description: "Comma-separated list of tweet fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields")
+                    "pagination_token": .string(description: "Pagination token")
                 ],
                 required: ["id"]
             )
@@ -656,13 +627,7 @@ enum XTool: String, CaseIterable, Identifiable {
                 properties: [
                     "id": .string(description: "The tweet ID"),
                     "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100),
-                    "pagination_token": .string(description: "Pagination token"),
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "media.fields": .string(description: "Comma-separated list of media fields"),
-                    "place.fields": .string(description: "Comma-separated list of place fields"),
-                    "poll.fields": .string(description: "Comma-separated list of poll fields"),
-                    "tweet.fields": .string(description: "Comma-separated list of tweet fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields")
+                    "pagination_token": .string(description: "Pagination token")
                 ],
                 required: ["id"]
             )
@@ -690,13 +655,7 @@ enum XTool: String, CaseIterable, Identifiable {
                 properties: [
                     "id": .string(description: "The user ID"),
                     "max_results": .integer(description: "Maximum results", minimum: 5, maximum: 100),
-                    "pagination_token": .string(description: "Pagination token"),
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "media.fields": .string(description: "Comma-separated list of media fields"),
-                    "place.fields": .string(description: "Comma-separated list of place fields"),
-                    "poll.fields": .string(description: "Comma-separated list of poll fields"),
-                    "tweet.fields": .string(description: "Comma-separated list of tweet fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields")
+                    "pagination_token": .string(description: "Pagination token")
                 ],
                 required: ["id"]
             )
@@ -707,13 +666,7 @@ enum XTool: String, CaseIterable, Identifiable {
                 properties: [
                     "id": .string(description: "The tweet ID"),
                     "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100),
-                    "pagination_token": .string(description: "Pagination token"),
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "media.fields": .string(description: "Comma-separated list of media fields"),
-                    "place.fields": .string(description: "Comma-separated list of place fields"),
-                    "poll.fields": .string(description: "Comma-separated list of poll fields"),
-                    "tweet.fields": .string(description: "Comma-separated list of tweet fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields")
+                    "pagination_token": .string(description: "Pagination token")
                 ],
                 required: ["id"]
             )
@@ -741,13 +694,7 @@ enum XTool: String, CaseIterable, Identifiable {
                 properties: [
                     "id": .string(description: "The tweet ID"),
                     "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100),
-                    "pagination_token": .string(description: "Pagination token"),
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "media.fields": .string(description: "Comma-separated list of media fields"),
-                    "place.fields": .string(description: "Comma-separated list of place fields"),
-                    "poll.fields": .string(description: "Comma-separated list of poll fields"),
-                    "tweet.fields": .string(description: "Comma-separated list of tweet fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields")
+                    "pagination_token": .string(description: "Pagination token")
                 ],
                 required: ["id"]
             )
@@ -785,10 +732,7 @@ enum XTool: String, CaseIterable, Identifiable {
         case .getList:
             return .object(
                 properties: [
-                    "id": .string(description: "The list ID"),
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "list.fields": .string(description: "Comma-separated list of list fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields")
+                    "id": .string(description: "The list ID")
                 ],
                 required: ["id"]
             )
@@ -798,10 +742,7 @@ enum XTool: String, CaseIterable, Identifiable {
                 properties: [
                     "id": .string(description: "The list ID"),
                     "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100),
-                    "pagination_token": .string(description: "Pagination token"),
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "tweet.fields": .string(description: "Comma-separated list of tweet fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields")
+                    "pagination_token": .string(description: "Pagination token")
                 ],
                 required: ["id"]
             )
@@ -829,13 +770,7 @@ enum XTool: String, CaseIterable, Identifiable {
                 properties: [
                     "id": .string(description: "The list ID"),
                     "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100),
-                    "pagination_token": .string(description: "Pagination token"),
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "media.fields": .string(description: "Comma-separated list of media fields"),
-                    "place.fields": .string(description: "Comma-separated list of place fields"),
-                    "poll.fields": .string(description: "Comma-separated list of poll fields"),
-                    "tweet.fields": .string(description: "Comma-separated list of tweet fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields")
+                    "pagination_token": .string(description: "Pagination token")
                 ],
                 required: ["id"]
             )
@@ -845,10 +780,7 @@ enum XTool: String, CaseIterable, Identifiable {
                 properties: [
                     "id": .string(description: "The list ID"),
                     "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100),
-                    "pagination_token": .string(description: "Pagination token"),
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "list.fields": .string(description: "Comma-separated list of list fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields")
+                    "pagination_token": .string(description: "Pagination token")
                 ],
                 required: ["id"]
             )
@@ -932,12 +864,7 @@ enum XTool: String, CaseIterable, Identifiable {
                 properties: [
                     "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100),
                     "pagination_token": .string(description: "Pagination token"),
-                    "event_types": .string(description: "Comma-separated event types"),
-                    "dm_event.fields": .string(description: "Comma-separated DM event fields"),
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "media.fields": .string(description: "Comma-separated list of media fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields"),
-                    "tweet.fields": .string(description: "Comma-separated list of tweet fields")
+                    "event_types": .string(description: "Comma-separated event types")
                 ]
             )
 
@@ -947,12 +874,7 @@ enum XTool: String, CaseIterable, Identifiable {
                     "id": .string(description: "Conversation ID"),
                     "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100),
                     "pagination_token": .string(description: "Pagination token"),
-                    "event_types": .string(description: "Comma-separated event types"),
-                    "dm_event.fields": .string(description: "Comma-separated DM event fields"),
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "media.fields": .string(description: "Comma-separated list of media fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields"),
-                    "tweet.fields": .string(description: "Comma-separated list of tweet fields")
+                    "event_types": .string(description: "Comma-separated event types")
                 ],
                 required: ["id"]
             )
@@ -968,12 +890,7 @@ enum XTool: String, CaseIterable, Identifiable {
         case .getDMEventDetails:
             return .object(
                 properties: [
-                    "id": .string(description: "DM event ID"),
-                    "dm_event.fields": .string(description: "Comma-separated DM event fields"),
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "media.fields": .string(description: "Comma-separated list of media fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields"),
-                    "tweet.fields": .string(description: "Comma-separated list of tweet fields")
+                    "id": .string(description: "DM event ID")
                 ],
                 required: ["id"]
             )
@@ -1002,13 +919,7 @@ enum XTool: String, CaseIterable, Identifiable {
                 properties: [
                     "id": .string(description: "The user ID"),
                     "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100),
-                    "pagination_token": .string(description: "Pagination token"),
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "media.fields": .string(description: "Comma-separated list of media fields"),
-                    "place.fields": .string(description: "Comma-separated list of place fields"),
-                    "poll.fields": .string(description: "Comma-separated list of poll fields"),
-                    "tweet.fields": .string(description: "Comma-separated list of tweet fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields")
+                    "pagination_token": .string(description: "Pagination token")
                 ],
                 required: ["id"]
             )
@@ -1017,9 +928,7 @@ enum XTool: String, CaseIterable, Identifiable {
         case .getSpace:
             return .object(
                 properties: [
-                    "id": .string(description: "The space ID"),
-                    "space.fields": .string(description: "Comma-separated space fields"),
-                    "expansions": .string(description: "Comma-separated list of expansions")
+                    "id": .string(description: "The space ID")
                 ],
                 required: ["id"]
             )
@@ -1027,9 +936,7 @@ enum XTool: String, CaseIterable, Identifiable {
         case .getSpaces:
             return .object(
                 properties: [
-                    "ids": .array(description: "Space IDs", items: .string()),
-                    "space.fields": .string(description: "Comma-separated space fields"),
-                    "expansions": .string(description: "Comma-separated list of expansions")
+                    "ids": .array(description: "Space IDs", items: .string())
                 ],
                 required: ["ids"]
             )
@@ -1037,9 +944,7 @@ enum XTool: String, CaseIterable, Identifiable {
         case .getSpacesByCreator:
             return .object(
                 properties: [
-                    "user_ids": .array(description: "Creator user IDs", items: .string()),
-                    "space.fields": .string(description: "Comma-separated space fields"),
-                    "expansions": .string(description: "Comma-separated list of expansions")
+                    "user_ids": .array(description: "Creator user IDs", items: .string())
                 ],
                 required: ["user_ids"]
             )
@@ -1048,11 +953,7 @@ enum XTool: String, CaseIterable, Identifiable {
             return .object(
                 properties: [
                     "id": .string(description: "The space ID"),
-                    "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100),
-                    "space.fields": .string(description: "Comma-separated space fields"),
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "tweet.fields": .string(description: "Comma-separated list of tweet fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields")
+                    "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100)
                 ],
                 required: ["id"]
             )
@@ -1062,9 +963,7 @@ enum XTool: String, CaseIterable, Identifiable {
                 properties: [
                     "query": .string(description: "Search query"),
                     "state": .string(description: "Space state", enum: ["live", "scheduled", "ended"]),
-                    "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100),
-                    "space.fields": .string(description: "Comma-separated space fields"),
-                    "expansions": .string(description: "Comma-separated list of expansions")
+                    "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100)
                 ],
                 required: ["query"]
             )
@@ -1073,10 +972,7 @@ enum XTool: String, CaseIterable, Identifiable {
             return .object(
                 properties: [
                     "id": .string(description: "The space ID"),
-                    "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100),
-                    "space.fields": .string(description: "Comma-separated space fields"),
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "user.fields": .string(description: "Comma-separated list of user fields")
+                    "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100)
                 ],
                 required: ["id"]
             )
