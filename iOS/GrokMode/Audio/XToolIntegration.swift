@@ -11,7 +11,7 @@ import JSONSchema
 struct XToolIntegration {
     
     static var tools: [XTool] {
-        XTool.supportedTools
+        XTool.allCases
     }
 
     static func getToolDefinitions() -> [ConversationEvent.ToolDefinition] {
