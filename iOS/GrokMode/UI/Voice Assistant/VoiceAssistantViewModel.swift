@@ -455,6 +455,59 @@ class VoiceAssistantViewModel: NSObject {
         }
     }
 
+    // Execute the approved tool and return results
+    private func executeApprovedTool() async -> (output: String, success: Bool) {
+        guard let pendingTool = pendingToolCallQueue.first else {
+            return ("No pending tool to execute", false)
+        }
+
+        // Parse arguments
+        guard let data = pendingTool.arguments.data(using: .utf8),
+              let parameters = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let tool = XTool(rawValue: pendingTool.functionName) else {
+            // Move to next and notify
+            moveToNextPendingTool()
+            return ("Failed to parse tool parameters", false)
+        }
+
+        // Execute the tool
+        let orchestrator = XToolOrchestrator(authService: authViewModel.authService)
+        let result = await orchestrator.executeTool(tool, parameters: parameters, id: pendingTool.id)
+
+        let outputString: String
+        let isSuccess: Bool
+
+        if result.success, let response = result.response {
+            outputString = response
+            isSuccess = true
+
+            // Parse and display tweets if applicable
+            await MainActor.run {
+                parseTweetsFromResponse(response, toolName: tool.rawValue)
+                addConversationItem(.toolCall(name: pendingTool.functionName, status: .executed(success: true)))
+            }
+        } else {
+            outputString = result.error?.message ?? "Unknown error"
+            isSuccess = false
+
+            await MainActor.run {
+                addConversationItem(.toolCall(name: pendingTool.functionName, status: .executed(success: false)))
+            }
+        }
+
+        // Send the original tool's result back to XAI
+        try? xaiService?.sendToolOutput(
+            toolCallId: pendingTool.id,
+            output: outputString,
+            success: isSuccess
+        )
+
+        // Move to next tool in queue and notify
+        moveToNextPendingTool()
+
+        return (outputString, isSuccess)
+    }
+
     private func executeTool(_ toolCall: ConversationEvent.ToolCall) {
         Task {
             // Handle voice confirmation tools specially
@@ -471,16 +524,17 @@ class VoiceAssistantViewModel: NSObject {
                         originalToolCallId = "unknown"
                     }
 
-                    approveToolCall()
+                    // Execute the approved tool and wait for results
+                    let (outputString, isSuccess) = await executeApprovedTool()
 
-                    // Send success response to Grok with original tool call ID
+                    // Send single combined response to Grok with confirmation + results
                     try? xaiService?.sendToolOutput(
                         toolCallId: toolCall.id,
-                        output: "User confirmed the action. Original tool call ID: \(originalToolCallId). The action is now being executed.",
-                        success: true
+                        output: "User confirmed the action. Original tool call ID: \(originalToolCallId). Execution result: \(outputString)",
+                        success: isSuccess
                     )
 
-                    addConversationItem(.toolCall(name: toolCall.function.name, status: .executed(success: true)))
+                    addConversationItem(.toolCall(name: toolCall.function.name, status: .executed(success: isSuccess)))
                     try? xaiService?.createResponse()
                     return
 
@@ -584,7 +638,7 @@ class VoiceAssistantViewModel: NSObject {
         #endif
 
         do {
-            if let xTool = XTool(rawValue: toolName), xTool == .searchRecentTweets || xTool == .searchAllTweets || xTool == .getTweets || xTool == .getTweet || xTool == .getUserLikedTweets {
+            if let xTool = XTool(rawValue: toolName), xTool == .searchRecentTweets || xTool == .searchAllTweets || xTool == .getTweets || xTool == .getTweet || xTool == .getUserLikedTweets || xTool == .getUserTweets || xTool == .getUserMentions || xTool == .getHomeTimeline {
                 struct TweetResponse: Codable {
                     let data: [XTweet]?
                     let includes: Includes?

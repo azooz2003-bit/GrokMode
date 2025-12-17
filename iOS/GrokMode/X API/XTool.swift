@@ -24,6 +24,9 @@ enum XTool: String, CaseIterable, Identifiable {
     case deleteTweet = "delete_tweet"
     case getTweet = "get_tweet"
     case getTweets = "get_tweets"
+    case getUserTweets = "get_user_tweets"
+    case getUserMentions = "get_user_mentions"
+    case getHomeTimeline = "get_home_timeline"
     case searchRecentTweets = "search_recent_tweets"
     case searchAllTweets = "search_all_tweets"
     case getRecentTweetCounts = "get_recent_tweet_counts"
@@ -146,6 +149,9 @@ enum XTool: String, CaseIterable, Identifiable {
         case .deleteTweet: return "Delete a specific tweet by ID"
         case .getTweet: return "Get details of a specific tweet by ID"
         case .getTweets: return "Get multiple tweets by their IDs"
+        case .getUserTweets: return "Get tweets posted by a specific user"
+        case .getUserMentions: return "Get tweets mentioning a specific user"
+        case .getHomeTimeline: return "Get the authenticated user's home timeline"
         case .searchRecentTweets: return "Search tweets from the last 7 days"
         case .searchAllTweets: return "Search tweets from the full archive"
         case .getRecentTweetCounts: return "Get tweet counts for recent tweets"
@@ -362,6 +368,33 @@ enum XTool: String, CaseIterable, Identifiable {
                     "ids": .array(description: "Tweet IDs", items: .string()),
                 ],
                 required: ["ids"]
+            )
+
+        case .getUserTweets:
+            return .object(
+                properties: [
+                    "id": .string(description: "The user ID whose tweets to retrieve"),
+                    "max_results": .integer(description: "Maximum number of tweets to return. Must be between 5 and 100. Defaults to 10."),
+                    "exclude": .array(description: "Tweet types to exclude (e.g., 'retweets', 'replies')", items: .string(enum: ["retweets", "replies"]))
+                ],
+                required: ["id"]
+            )
+
+        case .getUserMentions:
+            return .object(
+                properties: [
+                    "id": .string(description: "The user ID whose mentions to retrieve"),
+                    "max_results": .integer(description: "Maximum number of mentions to return. Must be between 5 and 100. Defaults to 10.")
+                ],
+                required: ["id"]
+            )
+
+        case .getHomeTimeline:
+            return .object(
+                properties: [
+                    "max_results": .integer(description: "Maximum number of tweets to return. Must be between 1 and 100. Defaults to 10."),
+                    "exclude": .array(description: "Tweet types to exclude (e.g., 'retweets', 'replies')", items: .string(enum: ["retweets", "replies"]))
+                ]
             )
 
         case .searchRecentTweets:
@@ -1793,6 +1826,6 @@ extension XTool {
     }
 
     static var supportedTools: [Self] {
-        [.createTweet, .replyToTweet, .quoteTweet, .createPollTweet, .deleteTweet, .getTweet, .getTweets, .searchRecentTweets, .getUserById, .getUserByUsername, .sendDMToParticipant, .sendDMToConversation]
+        [.createTweet, .replyToTweet, .quoteTweet, .createPollTweet, .deleteTweet, .getTweet, .getTweets, .getUserTweets, .getUserMentions, .getHomeTimeline, .searchRecentTweets, .getUserById, .getUserByUsername, .sendDMToParticipant, .sendDMToConversation]
     }
 }

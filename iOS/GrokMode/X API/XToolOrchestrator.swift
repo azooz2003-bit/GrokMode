@@ -235,6 +235,23 @@ actor XToolOrchestrator {
             method = .get
             queryItems = buildQueryItems(from: enrichWithTweetFields(parameters))
 
+        case .getUserTweets:
+            guard let userId = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
+            path = "/2/users/\(userId)/tweets"
+            method = .get
+            queryItems = buildQueryItems(from: enrichWithTweetFields(parameters), excluding: ["id"])
+
+        case .getUserMentions:
+            guard let userId = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
+            path = "/2/users/\(userId)/mentions"
+            method = .get
+            queryItems = buildQueryItems(from: enrichWithTweetFields(parameters), excluding: ["id"])
+
+        case .getHomeTimeline:
+            path = "/2/tweets/timelines/reverse_chronological"
+            method = .get
+            queryItems = buildQueryItems(from: enrichWithTweetFields(parameters))
+
         case .searchRecentTweets:
             path = "/2/tweets/search/recent"
             method = .get
