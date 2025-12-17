@@ -8,6 +8,7 @@
 import AVFoundation
 import Foundation
 import OSLog
+import Speech
 
 protocol AudioStreamerDelegate: AnyObject {
     func audioStreamerDidReceiveAudioData(_ data: Data)
@@ -36,10 +37,14 @@ class AudioStreamer: NSObject {
     private let audioQueue = DispatchQueue(label: "com.grokmode.audiostreamer", qos: .userInitiated)
 
     private var hasTapInstalled = false
-    private var speechDetected = false
-    private var silenceCounter = 0
-    private let silenceThreshold: Float = -25.0 // dB
-    private let silenceDuration = 30 // frames (~1.5 seconds at 20ms per frame)
+
+    // Speech-based VAD for accurate speech detection
+    private let speechVAD: SpeechVAD
+
+    /// Tracks if user is currently speaking (linked to Speech VAD)
+    var speechDetected: Bool {
+        speechVAD.isSpeaking
+    }
 
     /// Computed property that reflects actual streaming state
     /// Returns true when input tap is installed AND audio engine is running
@@ -126,7 +131,13 @@ class AudioStreamer: NSObject {
         self.serverAudioFormat = serverAudioFormat
         self.hardwareFormat = hardwareFormat
 
+        // Initialize Speech-based VAD
+        self.speechVAD = SpeechVAD()
+
         super.init()
+
+        // Set delegate after super.init
+        self.speechVAD.delegate = self
     }
 
     // MARK: Audio Actions
@@ -158,6 +169,9 @@ class AudioStreamer: NSObject {
         AppLogger.audio.debug("🎙️ Input format: \(inputFormat.sampleRate)Hz, \(inputFormat.channelCount) channels")
         #endif
 
+        // Start Speech-based VAD
+        speechVAD.startDetection()
+
         // Install a tap on the input node to capture audio
         // Note: VoiceProcessingIO might force a specific format (usually 48kHz or 24kHz), we must handle it.
         inputNode.installTap(onBus: 0, bufferSize: 1024, format: inputFormat) { [weak self] (buffer, time) in
@@ -176,6 +190,9 @@ class AudioStreamer: NSObject {
     }
 
     func stopStreaming() {
+        // Stop Speech VAD
+        speechVAD.stopDetection()
+
         audioQueue.async {
             guard self.isStreaming else { return }
 
@@ -187,8 +204,6 @@ class AudioStreamer: NSObject {
             self.playerNode.reset() // Clear all scheduled buffers
 
             self.hasTapInstalled = false
-            self.speechDetected = false
-            self.silenceCounter = 0
         }
 
         AppLogger.audio.info("✅ Audio streaming stopped")
@@ -277,10 +292,13 @@ class AudioStreamer: NSObject {
 
     /// Processes input audio
     private func processInputAudioBuffer(_ buffer: AVAudioPCMBuffer) throws {
+        // Feed buffer to Speech VAD for accurate speech detection
+        speechVAD.appendAudioBuffer(buffer)
+
         // Convert to XAI format (24kHz, 16-bit PCM, mono)
         let convertedBuffer = try convertToServerFormat(buffer)
 
-        // Simple VAD (Voice Activity Detection)
+        // Calculate RMS for audio level visualization
         let rms = calculateRMS(convertedBuffer)
 
         // Normalize RMS from dB (-100 to 0) to 0.0 to 1.0 for waveform
@@ -288,32 +306,8 @@ class AudioStreamer: NSObject {
         let normalizedLevel = max(0, min(1, (rms + 50) / 50)) // Map -50dB to 0dB -> 0.0 to 1.0
         delegate?.audioStreamerDidUpdateAudioLevel(normalizedLevel)
 
-        if rms > silenceThreshold && !speechDetected {
-            // Speech started
-            speechDetected = true
-            silenceCounter = 0
-            delegate?.audioStreamerDidDetectSpeechStart()
-            #if DEBUG
-            AppLogger.audio.debug("🎤 Speech detected (RMS: \(String(format: "%.1f", rms)) dB)")
-            #endif
-        } else if rms <= silenceThreshold && speechDetected {
-            // Potential silence
-            silenceCounter += 1
-            if silenceCounter >= silenceDuration {
-                // Speech ended
-                speechDetected = false
-                silenceCounter = 0
-                delegate?.audioStreamerDidDetectSpeechEnd()
-                #if DEBUG
-                AppLogger.audio.debug("🤫 Speech ended (silence detected)")
-                #endif
-            }
-        } else if speechDetected {
-            // Reset silence counter during speech
-            silenceCounter = 0
-        }
-
-        // Send audio data if speech is detected
+        // Always send audio data to Grok (they need all audio for server-side VAD)
+        // Speech VAD will trigger interruption callbacks when real speech is detected
         if speechDetected {
             // Convert buffer to Data
             let frameCount = Int(convertedBuffer.frameLength)
@@ -358,7 +352,7 @@ class AudioStreamer: NSObject {
 
         let frameCount = Int(buffer.frameLength)
         if frameCount == 0 { return -100 }
-        
+
         var sum: Float = 0
 
         // vDSP could be faster, but simple loop is fine for small buffers
@@ -371,5 +365,19 @@ class AudioStreamer: NSObject {
         let db = 20 * log10(max(rms, .leastNonzeroMagnitude))
 
         return db
+    }
+}
+
+// MARK: - SpeechVADDelegate
+
+extension AudioStreamer: SpeechVADDelegate {
+    func speechVADDidDetectSpeech() {
+        // Speech VAD detected actual speech - notify delegate
+        delegate?.audioStreamerDidDetectSpeechStart()
+    }
+
+    func speechVADDidDetectSilence() {
+        // Speech VAD detected silence - notify delegate
+        delegate?.audioStreamerDidDetectSpeechEnd()
     }
 }

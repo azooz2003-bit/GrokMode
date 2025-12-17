@@ -709,12 +709,14 @@ extension VoiceAssistantViewModel: AudioStreamerDelegate {
 
     nonisolated func audioStreamerDidDetectSpeechStart() {
         Task { @MainActor in
-            // Speech detection handled automatically
-            // User started speaking
+            // Speech framework detected actual speech (not just noise)
+            // Immediately interrupt Grok's playback for faster response
+            AppLogger.audio.debug("🗣️ Speech framework detected user speaking - interrupting Grok")
+
             voiceSessionState = .listening
             audioStreamer?.stopPlayback()
 
-            // Handle truncation
+            // Handle truncation - tell Grok to stop generating audio
             if let itemId = currentItemId, let startTime = currentAudioStartTime {
                 let elapsed = Int(Date().timeIntervalSince(startTime) * 1000)
                 try? xaiService?.sendTruncationEvent(itemId: itemId, audioEndMs: elapsed)
@@ -726,6 +728,9 @@ extension VoiceAssistantViewModel: AudioStreamerDelegate {
 
     nonisolated func audioStreamerDidDetectSpeechEnd() {
         Task { @MainActor in
+            // Speech framework detected silence
+            // Server-side VAD will handle the buffer commit when ready
+            AppLogger.audio.debug("🤫 Speech framework detected silence")
             voiceSessionState = .connected
             try? self.xaiService?.commitAudioBuffer()
         }
