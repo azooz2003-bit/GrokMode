@@ -14,6 +14,7 @@ struct ToolCallData: Identifiable, Codable {
     let toolName: String
     let parameters: [String: String]
     let timestamp: Date
+    let itemId: String? // Conversation item ID for linking context
 }
 
 enum ToolResponseContent: Codable {
@@ -79,22 +80,23 @@ struct ToolLog: Identifiable, Codable {
 class SessionState {
     var toolCalls: [ToolLog] = []
     
-    func addCall(id: String, toolName: String, parameters: [String: Any]) {
+    func addCall(id: String, toolName: String, parameters: [String: Any], itemId: String? = nil) {
         // Convert [String: Any] to [String: String] for storage, checking types
         var stringParams: [String: String] = [:]
         for (key, value) in parameters {
             stringParams[key] = "\(value)"
         }
-        
+
         let callData = ToolCallData(
             id: id,
             toolName: toolName,
             parameters: stringParams,
-            timestamp: Date.now
+            timestamp: Date.now,
+            itemId: itemId
         )
-        
+
         let log = ToolLog(call: callData, response: nil)
-        
+
         // Append to start or end? Usually end makes sense for logs.
         DispatchQueue.main.async {
             self.toolCalls.append(log)

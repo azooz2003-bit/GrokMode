@@ -12,42 +12,31 @@ import OSLog
 
 @Observable
 class VoiceAssistantViewModel: NSObject {
-    // State
+    // MARK: State
     var micPermission: MicPermissionState = .checking
     var voiceSessionState: VoiceSessionState = .disconnected
     var isSessionActivated: Bool = false
     var currentAudioLevel: Float = 0.0
 
-    // Conversation
     var conversationItems: [ConversationItem] = []
 
-    // Tool Confirmation Queue
     private var pendingToolCallQueue: [PendingToolCall] = []
-
-    // Currently focused pending tool call (first in queue)
     var currentPendingToolCall: PendingToolCall? {
         pendingToolCallQueue.first
     }
 
     // MARK: - Private Properties
-
     private var xaiService: XAIVoiceService?
     private var audioStreamer: AudioStreamer?
     private var sessionState = SessionState()
     private let authViewModel: AuthViewModel
 
-    // Truncation tracking
-    private var currentItemId: String?
-    private var currentAudioStartTime: Date?
+    private let serverSampleRate: ConversationEvent.AudioFormatType.SampleRate = .thirtyTwoKHz
 
-    // Configuration
-    private let serverSampleRate: ConversationEvent.AudioFormatType.SampleRate = .fourtyEightKHz
-
-    // X Auth - computed properties from AuthViewModel
+    // MARK: Authentication
     var isXAuthenticated: Bool {
         authViewModel.isAuthenticated
     }
-
     var xUserHandle: String? {
         authViewModel.currentUserHandle
     }
@@ -79,19 +68,7 @@ class VoiceAssistantViewModel: NSObject {
         }
     }
 
-    func requestMicrophonePermission() {
-        AVAudioApplication.requestRecordPermission { [weak self] granted in
-            DispatchQueue.main.async {
-                self?.micPermission = granted ? .granted : .denied
-            }
-        }
-    }
-
     // MARK: - Connection Management
-
-    var canConnect: Bool {
-        return micPermission.isGranted && !voiceSessionState.isConnected && !voiceSessionState.isConnecting
-    }
 
     func connect() {
         voiceSessionState = .connecting
@@ -130,6 +107,8 @@ class VoiceAssistantViewModel: NSObject {
 
         xaiService.onDisconnected = { [weak self] error in
             Task { @MainActor in
+                guard self?.voiceSessionState != .disconnected else { return }
+
                 if let error = error {
                     AppLogger.voice.error("WebSocket disconnected with error: \(error.localizedDescription)")
                 } else {
@@ -216,9 +195,9 @@ class VoiceAssistantViewModel: NSObject {
 
     func disconnect() {
         isSessionActivated = false
+        voiceSessionState = .disconnected
         xaiService?.disconnect()
         audioStreamer?.stopStreaming()
-        voiceSessionState = .disconnected
 
         addSystemMessage("Disconnected")
     }
@@ -281,12 +260,6 @@ class VoiceAssistantViewModel: NSObject {
                 }
             }
 
-            // Track item ID for truncation
-            if let item = message.item {
-                currentItemId = item.id
-                currentAudioStartTime = nil
-            }
-
         case .conversationItemAdded:
             break
 
@@ -307,13 +280,9 @@ class VoiceAssistantViewModel: NSObject {
             audioStreamer?.stopPlayback()
             voiceSessionState = .listening
 
-            currentItemId = nil
-            currentAudioStartTime = nil
-
         case .inputAudioBufferSpeechStopped:
             // User stopped speaking (server-side VAD - faster than local)
             voiceSessionState = .connected
-//            try? self.xaiService?.commitAudioBuffer()
 
         case .inputAudioBufferCommitted:
             // Audio sent for processing
@@ -331,12 +300,7 @@ class VoiceAssistantViewModel: NSObject {
                 } catch {
                     AppLogger.audio.error("Failed to play audio: \(error.localizedDescription)")
                 }
-                voiceSessionState = .grokSpeaking(itemId: currentItemId)
-
-                // Track start time of first audio chunk
-                if currentAudioStartTime == nil {
-                    currentAudioStartTime = Date()
-                }
+                voiceSessionState = .grokSpeaking(itemId: nil)
             }
 
         case .error:
@@ -388,6 +352,7 @@ class VoiceAssistantViewModel: NSObject {
                     output: "This action requires user confirmation. Tool call ID: \(toolCall.id). Waiting for the user to confirm or cancel. Ask the user: 'Should I do this? Say yes to confirm or no to cancel.'. Send a confirm_action tool call if the user indicates that they'd like to confirm this action.",
                     success: false
                 )
+                try? xaiService?.createResponse()
             }
 
             // Fetch rich preview asynchronously to update UI
@@ -453,78 +418,57 @@ class VoiceAssistantViewModel: NSObject {
                 output: "This action requires user confirmation. Tool call ID: \(nextTool.id). Waiting for the user to confirm or cancel. Ask the user: 'Should I do this? Say yes to confirm or no to cancel.'",
                 success: false
             )
+            try? xaiService?.createResponse()
         }
     }
 
     private func executeTool(_ toolCall: ConversationEvent.ToolCall) {
         Task {
             // Handle voice confirmation tools specially
-            if let tool = XTool(rawValue: toolCall.function.name) {
+            if let tool = XTool(rawValue: toolCall.function.name), tool == .confirmAction || tool == .cancelAction {
+
+                struct ConfirmationParams: Codable {
+                    let tool_call_id: String
+                }
+
+                let params = try? JSONDecoder().decode(
+                    ConfirmationParams.self,
+                    from: toolCall.function.arguments.data(using: .utf8) ?? Data()
+                )
+                let originalToolCallId = params?.tool_call_id ?? "unknown"
+                let originalItemId = sessionState.toolCalls.first { $0.id == originalToolCallId }?.call.itemId
+
                 switch tool {
                 case .confirmAction:
-                    // Parse the tool_call_id parameter
-                    let originalToolCallId: String
-                    if let data = toolCall.function.arguments.data(using: .utf8),
-                       let params = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                       let toolCallId = params["tool_call_id"] as? String {
-                        originalToolCallId = toolCallId
-                    } else {
-                        originalToolCallId = "unknown"
-                    }
-
-                    // Send immediate confirmation response
                     try? xaiService?.sendToolOutput(
                         toolCallId: toolCall.id,
                         output: "CONFIRMATION ACKNOWLEDGED: User has confirmed the action for tool call ID \(originalToolCallId). The action is now being executed. IMPORTANT: You will receive the actual execution result in a separate message momentarily. You can say anything, however don't misguide the user assuming the request is done - because it isn't.",
-                        success: true
+                        success: true,
+                        previousItemId: originalItemId
                     )
-
                     addConversationItem(.toolCall(name: toolCall.function.name, status: .executed(success: true)))
-                    try? xaiService?.createResponse()
-
-                    // Execute the approved tool (handles sending result and moving to next)
                     approveToolCall()
-
-                    return
-
                 case .cancelAction:
-                    // Parse the tool_call_id parameter
-                    let originalToolCallId: String
-                    if let data = toolCall.function.arguments.data(using: .utf8),
-                       let params = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                       let toolCallId = params["tool_call_id"] as? String {
-                        originalToolCallId = toolCallId
-                    } else {
-                        originalToolCallId = "unknown"
-                    }
-
                     rejectToolCall()
-
-                    // Send success response to Grok with original tool call ID
                     try? xaiService?.sendToolOutput(
                         toolCallId: toolCall.id,
                         output: "User cancelled the action. Original tool call ID: \(originalToolCallId). The action was not executed.",
-                        success: true
+                        success: true,
+                        previousItemId: originalItemId
                     )
-
                     addConversationItem(.toolCall(name: toolCall.function.name, status: .executed(success: true)))
-                    try? xaiService?.createResponse()
-                    return
-
-                default:
-                    break
+                default: fatalError("Will never happen.")
                 }
-            }
 
-            guard let data = toolCall.function.arguments.data(using: .utf8),
-                  let parameters = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
                 return
             }
+            // Handle remaining X tools normally
+            else if let tool = XTool(rawValue: toolCall.function.name),
+                      let data = toolCall.function.arguments.data(using: .utf8),
+                      let parameters = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                let outputString: String
+                let isSuccess: Bool
 
-            let outputString: String
-            let isSuccess: Bool
-
-            if let tool = XTool(rawValue: toolCall.function.name) {
                 // Handle X API tools through orchestrator
                 let orchestrator = XToolOrchestrator(authService: authViewModel.authService)
                 let result = await orchestrator.executeTool(tool, parameters: parameters, id: toolCall.id)
@@ -547,9 +491,6 @@ class VoiceAssistantViewModel: NSObject {
                     success: isSuccess
                 )
 
-                // Trigger response creation
-                try? xaiService?.createResponse()
-
                 addConversationItem(.toolCall(name: toolCall.function.name, status: .executed(success: isSuccess)))
             }
         }
@@ -563,63 +504,39 @@ class VoiceAssistantViewModel: NSObject {
     }
 
     private func addSystemMessage(_ message: String) {
-        // Prevent consecutive duplicate system messages (especially errors)
-        if let lastItem = conversationItems.last,
-           case .systemMessage(let lastMessage) = lastItem.type,
-           lastMessage == message {
-            #if DEBUG
-            AppLogger.voice.debug("Skipping duplicate system message: \(message)")
-            #endif
-            return
-        }
-
         addConversationItem(.systemMessage(message))
     }
 
     private func parseTweetsFromResponse(_ response: String, toolName: String) {
-        guard let data = response.data(using: .utf8) else { return }
+        struct TweetResponse: Codable {
+            let data: [XTweet]?
+            let includes: Includes?
+            struct Includes: Codable {
+                let users: [XUser]?
+                let media: [XMedia]?
+            }
+        }
 
         let tweetTools: Set<XTool> = [
             .searchRecentTweets, .searchAllTweets, .getTweets, .getTweet,
             .getUserLikedTweets, .getUserTweets, .getUserMentions, .getHomeTimeline
         ]
 
-        do {
-            if let xTool = XTool(rawValue: toolName), tweetTools.contains(xTool) {
-                struct TweetResponse: Codable {
-                    let data: [XTweet]?
-                    let includes: Includes?
+        guard let data = response.data(using: .utf8),
+              let tool = XTool(rawValue: toolName),
+              tweetTools.contains(tool),
+              let tweetResponse = try? JSONDecoder().decode(TweetResponse.self, from: data),
+              let tweets = tweetResponse.data else {
+            AppLogger.voice.error("Failed to parse tweets from response.")
+            return
+        }
 
-                    struct Includes: Codable {
-                        let users: [XUser]?
-                        let media: [XMedia]?
-                    }
-                }
-
-                let tweetResponse = try JSONDecoder().decode(TweetResponse.self, from: data)
-
-                if let tweets = tweetResponse.data {
-                    for tweet in tweets {
-                        let author = tweetResponse.includes?.users?.first { $0.id == tweet.author_id }
-
-                        // Extract media URLs
-                        var mediaUrls: [String] = []
-                        if let mediaKeys = tweet.attachments?.media_keys,
-                           let allMedia = tweetResponse.includes?.media {
-                            for mediaKey in mediaKeys {
-                                if let media = allMedia.first(where: { $0.media_key == mediaKey }),
-                                   let displayUrl = media.displayUrl {
-                                    mediaUrls.append(displayUrl)
-                                }
-                            }
-                        }
-
-                        addConversationItem(.tweet(tweet, author: author, mediaUrls: mediaUrls))
-                    }
-                }
-            }
-        } catch {
-            AppLogger.network.error("Failed to parse tweets: \(error.localizedDescription)")
+        tweets.forEach { tweet in
+            let author = tweetResponse.includes?.users?.first { $0.id == tweet.author_id }
+            let mediaUrls = tweet.attachments?.media_keys?.compactMap { key in
+                tweetResponse.includes?.media?.first { $0.media_key == key }?.displayUrl
+            } ?? []
+            addConversationItem(.tweet(tweet, author: author, mediaUrls: mediaUrls))
         }
     }
 
@@ -656,12 +573,6 @@ extension VoiceAssistantViewModel: AudioStreamerDelegate {
             // Speech framework detected actual speech (not just noise)
             // Immediately interrupt Grok's playback for faster response
             AppLogger.audio.debug("🗣️ Speech framework detected user speaking - interrupting Grok")
-
-//            voiceSessionState = .listening
-//            audioStreamer?.stopPlayback()
-//
-//            currentItemId = nil
-//            currentAudioStartTime = nil
         }
     }
 
@@ -670,10 +581,6 @@ extension VoiceAssistantViewModel: AudioStreamerDelegate {
             // Speech framework detected silence
             // Server-side VAD will handle the buffer commit when ready
             AppLogger.audio.debug("🤫 Speech framework detected silence")
-//            voiceSessionState = .connected
-//            try? self.xaiService?.commitAudioBuffer()
-//
-//            try? self.xaiService?.createResponse()
         }
     }
 

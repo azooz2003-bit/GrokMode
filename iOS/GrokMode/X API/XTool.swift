@@ -1434,7 +1434,6 @@ extension XTool {
             return (title: "Delete List", content: "🗑️ Delete this list?")
 
         case .updateList:
-            let listId = params["id"] as? String ?? ""
             let name = params["name"] as? String
             let description = params["description"] as? String
             let isPrivate = params["private"] as? Bool

@@ -46,6 +46,9 @@ class XAIVoiceService {
     - Always aim to provide a summary rather than the whole answer. For instance, if you're prompted to fetch any content, don't read all of them verbatim unless explicitly asked to do so.
     - Always plan the chain of tool calls you plan to make meticulously. For instance, if you need to search the authenticated user's followers before dm'ing that follower (the user asked you "dm person XYZ from my followers"), start by calling get_authenticated_user => then get_user_followers => then finally send_dm_to_participant. Plan your tool calls carefully and as it makes sense.
     - If you make multiple tool calls, or are in the process of making multiple tool calls, don't speak until all the tool calls you've made are done.
+    
+    Listen carefully to user intent, not just keywords
+    If unclear, ask for clarification rather than guessing
     """
     let sampleRate: ConversationEvent.AudioFormatType.SampleRate // Common sample rate for voice
 
@@ -267,10 +270,10 @@ class XAIVoiceService {
         try sendMessage(message)
     }
     
-    func sendToolOutput(toolCallId: String, output: String, success: Bool) throws {
+    func sendToolOutput(toolCallId: String, output: String, success: Bool, previousItemId: String? = nil) throws {
         // Log response to SessionState
         sessionState.updateResponse(id: toolCallId, responseString: output, success: success)
-        
+
         let toolOutput = ConversationEvent(
             type: .conversationItemCreate,
             audio: nil,
@@ -291,7 +294,7 @@ class XAIVoiceService {
                 arguments: nil
             ),
             event_id: nil,
-            previous_item_id: nil,
+            previous_item_id: previousItemId,
             response_id: nil,
             output_index: nil,
             item_id: nil,
@@ -378,8 +381,7 @@ class XAIVoiceService {
 
         switch message.type {
         case .conversationCreated:
-            AppLogger.voice.info("Conversation created, configuring session")
-            try? configureSession()
+            AppLogger.voice.info("Conversation created")
 
         case .sessionUpdated:
             AppLogger.voice.info("Session configured successfully")
@@ -396,7 +398,8 @@ class XAIVoiceService {
                      return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
                  }()
 
-                 sessionState.addCall(id: callId, toolName: name, parameters: params ?? ["raw": arguments])
+                 // Store tool call with conversation item ID for context linking
+                 sessionState.addCall(id: callId, toolName: name, parameters: params ?? ["raw": arguments], itemId: message.item_id)
              }
 
         default:
