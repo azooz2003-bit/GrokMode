@@ -37,114 +37,6 @@ actor XToolOrchestrator {
         return userToken
     }
 
-    /// Determines if a tool requires OAuth 2.0 User Context authentication
-    private func requiresUserContext(_ tool: XTool) -> Bool {
-        switch tool {
-        // MARK: Posts/Tweets - Write Operations
-        case .createTweet, .deleteTweet:
-            return true
-
-        // MARK: Likes
-        case .likeTweet, .unlikeTweet:
-            return true
-
-        // MARK: Retweets - Write Operations
-        case .retweet, .unretweet:
-            return true
-
-        // MARK: Users - Manage Operations
-        case .followUser, .unfollowUser,
-             .muteUser, .unmuteUser,
-             .blockUser, .unblockUser,
-             .blockUserDMs, .unblockUserDMs:
-            return true
-
-        // MARK: Users - Private Data Lookups
-        case .getAuthenticatedUser,
-             .getMutedUsers,
-             .getBlockedUsers:
-            return true
-
-        // MARK: Lists - Write Operations
-        case .createList, .deleteList, .updateList,
-             .addListMember, .removeListMember,
-             .pinList, .unpinList:
-            return true
-
-        // MARK: Direct Messages - All Operations (private data)
-        case .createDMConversation,
-             .sendDMToConversation,
-             .sendDMToParticipant,
-             .getDMEvents,
-             .getConversationDMs,
-             .deleteDMEvent,
-             .getDMEventDetails:
-            return true
-
-        // MARK: Bookmarks - All Operations (private data)
-        case .addBookmark, .removeBookmark, .getUserBookmarks:
-            return true
-
-        // MARK: Community Notes - Write Operations
-        case .createNote, .deleteNote, .evaluateNote:
-            return true
-
-        // MARK: Public Read Operations - Use Bearer Token
-        // Posts/Tweets Lookups
-        case .getTweet, .getTweets,
-             .searchRecentTweets, .searchAllTweets,
-             .getRecentTweetCounts, .getAllTweetCounts:
-            return false
-
-        // Likes/Retweets Lookups
-        case .getLikingUsers, .getUserLikedTweets,
-             .getRetweetedBy, .getRetweets:
-            return false
-
-        // Users - Public Lookups
-        case .getUserById, .getUserByUsername,
-             .getUsersById, .getUsersByUsername,
-             .getUserFollowing, .getUserFollowers:
-            return false
-
-        // Lists - Read Operations
-        case .getList, .getListMembers,
-             .getListTweets, .getListFollowers:
-            return false
-
-        // Spaces - All Lookups
-        case .getSpace, .getSpaces,
-             .getSpacesByCreator, .getSpaceTweets,
-             .searchSpaces, .getSpaceBuyers:
-            return false
-
-        // Community Notes - Lookups
-        case .getNotesWritten, .getPostsEligibleForNotes:
-            return false
-
-        // MARK: Streaming - Conservative: use user context
-        case .streamFilteredTweets, .manageStreamRules,
-             .getStreamRules, .getStreamRuleCounts,
-             .streamSample, .streamSample10:
-            return true
-
-        // MARK: Compliance - Conservative: use user context
-        case .createComplianceJob, .getComplianceJob, .listComplianceJobs:
-            return true
-
-        // MARK: Media - Conservative: use user context
-        case .uploadMedia, .getMediaStatus,
-             .initializeChunkedUpload, .appendChunkedUpload,
-             .finalizeChunkedUpload, .createMediaMetadata,
-             .getMediaAnalytics:
-            return true
-
-        // MARK: Trends - Conservative: use bearer token for public data
-        case .getTrendsByWoeid, .getPersonalizedTrends:
-            return false
-        }
-    }
-
     public func executeTool(_ tool: XTool, parameters: [String: Any], id: String? = nil) async -> XToolCallResult {
         return await executeToolWithRetry(tool, parameters: parameters, id: id, attempt: 1)
     }
@@ -184,7 +76,7 @@ actor XToolOrchestrator {
             if httpResponse.statusCode >= 200 && httpResponse.statusCode < 300 {
                 let responseString = String(data: data, encoding: .utf8)
                 return .success(id: id, toolName: tool.name, response: responseString, statusCode: httpResponse.statusCode)
-            } else if httpResponse.statusCode == 401 && attempt == 1 && requiresUserContext(tool) {
+            } else if httpResponse.statusCode == 401 && attempt == 1 {
                 // 401 on first attempt - token might have been revoked or invalid
                 // Force logout and return clear error
                 AppLogger.auth.warning("TOOL CALL: 401 Unauthorized - User needs to authenticate")
@@ -247,6 +139,48 @@ actor XToolOrchestrator {
         }
     }
 
+    // MARK: - Field Enrichment Helpers
+
+    /// Enriches parameters with essential tweet-related fields
+    private func enrichWithTweetFields(_ params: [String: Any]) -> [String: Any] {
+        var enriched = params
+        enriched["expansions"] = enriched["expansions"] ?? "attachments.poll_ids,attachments.media_keys,author_id,referenced_tweets.id"
+        enriched["tweet.fields"] = enriched["tweet.fields"] ?? "text,author_id,created_at,public_metrics,referenced_tweets,entities,conversation_id,in_reply_to_user_id"
+        enriched["user.fields"] = enriched["user.fields"] ?? "username,name,verified,verified_type,profile_image_url"
+        enriched["media.fields"] = enriched["media.fields"] ?? "url,type,preview_image_url"
+        enriched["poll.fields"] = enriched["poll.fields"] ?? "options,voting_status,end_datetime"
+        return enriched
+    }
+
+    /// Enriches parameters with essential user-related fields
+    private func enrichWithUserFields(_ params: [String: Any]) -> [String: Any] {
+        var enriched = params
+        enriched["user.fields"] = enriched["user.fields"] ?? "username,name,verified,verified_type,profile_image_url,description,created_at,public_metrics"
+        enriched["expansions"] = enriched["expansions"] ?? "pinned_tweet_id"
+        enriched["tweet.fields"] = enriched["tweet.fields"] ?? "text,created_at,public_metrics"
+        return enriched
+    }
+
+    /// Enriches parameters with essential list-related fields
+    private func enrichWithListFields(_ params: [String: Any]) -> [String: Any] {
+        var enriched = params
+        enriched["list.fields"] = enriched["list.fields"] ?? "name,description,owner_id,member_count,follower_count,private"
+        enriched["user.fields"] = enriched["user.fields"] ?? "username,name,verified,verified_type,profile_image_url"
+        enriched["expansions"] = enriched["expansions"] ?? "owner_id"
+        return enriched
+    }
+
+    /// Enriches parameters with essential DM-related fields
+    private func enrichWithDMFields(_ params: [String: Any]) -> [String: Any] {
+        var enriched = params
+        enriched["dm_event.fields"] = enriched["dm_event.fields"] ?? "id,text,event_type,created_at,sender_id,participant_ids"
+        enriched["user.fields"] = enriched["user.fields"] ?? "username,name,profile_image_url"
+        enriched["expansions"] = enriched["expansions"] ?? "sender_id,participant_ids,referenced_tweets.id,attachments.media_keys"
+        enriched["media.fields"] = enriched["media.fields"] ?? "url,type,preview_image_url"
+        enriched["tweet.fields"] = enriched["tweet.fields"] ?? "text,author_id,created_at"
+        return enriched
+    }
+
     internal func buildRequest(for tool: XTool, parameters: [String: Any]) async throws -> URLRequest {
         var path: String
         var method: HTTPMethod
@@ -258,12 +192,22 @@ actor XToolOrchestrator {
         case .createTweet:
             path = "/2/tweets"
             method = .post
+            bodyParams = parameters
 
-            var enrichedParams = parameters
-            if let _ = enrichedParams["quote_tweet_id"], enrichedParams["reply_settings"] == nil {
-                enrichedParams["reply_settings"] = "following"
-            }
-            bodyParams = enrichedParams
+        case .replyToTweet:
+            path = "/2/tweets"
+            method = .post
+            bodyParams = parameters
+
+        case .quoteTweet:
+            path = "/2/tweets"
+            method = .post
+            bodyParams = parameters
+
+        case .createPollTweet:
+            path = "/2/tweets"
+            method = .post
+            bodyParams = parameters
 
         case .deleteTweet:
             guard let id = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
@@ -274,39 +218,34 @@ actor XToolOrchestrator {
             guard let id = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
             path = "/2/tweets/\(id)"
             method = .get
-            queryItems = buildQueryItems(from: parameters, excluding: ["id"])
+            queryItems = buildQueryItems(from: enrichWithTweetFields(parameters), excluding: ["id"])
 
         case .getTweets:
             path = "/2/tweets"
             method = .get
-            queryItems = buildQueryItems(from: parameters)
+            queryItems = buildQueryItems(from: enrichWithTweetFields(parameters))
+
+        case .getUserTweets:
+            guard let userId = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
+            path = "/2/users/\(userId)/tweets"
+            method = .get
+            queryItems = buildQueryItems(from: enrichWithTweetFields(parameters), excluding: ["id"])
+
+        case .getUserMentions:
+            guard let userId = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
+            path = "/2/users/\(userId)/mentions"
+            method = .get
+            queryItems = buildQueryItems(from: enrichWithTweetFields(parameters), excluding: ["id"])
+
+        case .getHomeTimeline:
+            path = "/2/tweets/timelines/reverse_chronological"
+            method = .get
+            queryItems = buildQueryItems(from: enrichWithTweetFields(parameters))
 
         case .searchRecentTweets:
             path = "/2/tweets/search/recent"
             method = .get
-
-            // ALWAYS include ALL available fields for complete tweet data
-            var enrichedParams = parameters
-
-            // All expansions
-            enrichedParams["expansions"] = "attachments.poll_ids,attachments.media_keys,author_id,edit_history_tweet_ids,entities.mentions.username,geo.place_id,in_reply_to_user_id,referenced_tweets.id,referenced_tweets.id.author_id"
-
-            // All tweet fields
-            enrichedParams["tweet.fields"] = "attachments,author_id,context_annotations,conversation_id,created_at,edit_controls,entities,geo,id,in_reply_to_user_id,lang,public_metrics,possibly_sensitive,referenced_tweets,reply_settings,source,text,withheld"
-
-            // All user fields
-            enrichedParams["user.fields"] = "created_at,description,entities,id,location,name,pinned_tweet_id,profile_image_url,protected,public_metrics,url,username,verified,verified_type,withheld"
-
-            // All media fields
-            enrichedParams["media.fields"] = "duration_ms,height,media_key,preview_image_url,type,url,width,public_metrics,alt_text,variants"
-
-            // Poll fields
-            enrichedParams["poll.fields"] = "duration_minutes,end_datetime,id,options,voting_status"
-
-            // Place fields
-            enrichedParams["place.fields"] = "contained_within,country,country_code,full_name,geo,id,name,place_type"
-
-            queryItems = buildQueryItems(from: enrichedParams)
+            queryItems = buildQueryItems(from: enrichWithTweetFields(parameters))
 
         case .searchAllTweets:
             path = "/2/tweets/search/all"
@@ -345,68 +284,59 @@ actor XToolOrchestrator {
             method = .get
             queryItems = buildQueryItems(from: parameters)
 
-        // MARK: - Streaming
-        case .streamFilteredTweets:
-            path = "/2/tweets/search/stream"
-            method = .get
-            queryItems = buildQueryItems(from: parameters)
-
-        case .manageStreamRules:
-            path = "/2/tweets/search/stream/rules"
-            method = .post
-            bodyParams = parameters
-
-        case .getStreamRules:
-            path = "/2/tweets/search/stream/rules"
-            method = .get
-
-        case .getStreamRuleCounts:
-            path = "/2/tweets/search/stream/rules/counts"
-            method = .get
-
-        case .streamSample:
-            path = "/2/tweets/sample/stream"
-            method = .get
-            queryItems = buildQueryItems(from: parameters)
-
-        case .streamSample10:
-            path = "/2/tweets/sample10/stream"
-            method = .get
-            queryItems = buildQueryItems(from: parameters)
-
         // MARK: - Users
         case .getUserById:
             guard let id = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
             path = "/2/users/\(id)"
             method = .get
-            queryItems = buildQueryItems(from: parameters, excluding: ["id"])
+
+            var enrichedParams = parameters
+
+            // Use provided values or essential defaults via nil coalescing (as comma-separated strings)
+            enrichedParams["user.fields"] = enrichedParams["user.fields"] ?? "username,name,verified,verified_type,profile_image_url,description,created_at,public_metrics"
+
+            enrichedParams["expansions"] = enrichedParams["expansions"] ?? "pinned_tweet_id"
+
+            enrichedParams["tweet.fields"] = enrichedParams["tweet.fields"] ?? "text,created_at,public_metrics"
+
+            queryItems = buildQueryItems(from: enrichedParams, excluding: ["id"])
 
         case .getUserByUsername:
             guard let username = parameters["username"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: username") }
             path = "/2/users/by/username/\(username)"
             method = .get
-            queryItems = buildQueryItems(from: parameters, excluding: ["username"])
+
+            var enrichedParams = parameters
+
+            // Use provided values or essential defaults via nil coalescing (as comma-separated strings)
+            enrichedParams["user.fields"] = enrichedParams["user.fields"] ?? "username,name,verified,verified_type,profile_image_url,description,created_at,public_metrics"
+
+            enrichedParams["expansions"] = enrichedParams["expansions"] ?? "pinned_tweet_id"
+
+            enrichedParams["tweet.fields"] = enrichedParams["tweet.fields"] ?? "text,created_at,public_metrics"
+
+            queryItems = buildQueryItems(from: enrichedParams, excluding: ["username"])
 
         case .getUsersById:
             path = "/2/users"
             method = .get
-            queryItems = buildQueryItems(from: parameters)
+            queryItems = buildQueryItems(from: enrichWithUserFields(parameters))
 
         case .getUsersByUsername:
             path = "/2/users/by"
             method = .get
-            queryItems = buildQueryItems(from: parameters)
+            queryItems = buildQueryItems(from: enrichWithUserFields(parameters))
 
         case .getAuthenticatedUser:
             path = "/2/users/me"
             method = .get
-            queryItems = buildQueryItems(from: parameters)
+            queryItems = buildQueryItems(from: enrichWithUserFields(parameters))
 
         case .getUserFollowing:
             guard let id = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
             path = "/2/users/\(id)/following"
             method = .get
-            queryItems = buildQueryItems(from: parameters, excluding: ["id"])
+            queryItems = buildQueryItems(from: enrichWithUserFields(parameters), excluding: ["id"])
 
         case .followUser:
             guard let id = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
@@ -425,13 +355,13 @@ actor XToolOrchestrator {
             guard let id = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
             path = "/2/users/\(id)/followers"
             method = .get
-            queryItems = buildQueryItems(from: parameters, excluding: ["id"])
+            queryItems = buildQueryItems(from: enrichWithUserFields(parameters), excluding: ["id"])
 
         case .getMutedUsers:
             guard let id = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
             path = "/2/users/\(id)/muting"
             method = .get
-            queryItems = buildQueryItems(from: parameters, excluding: ["id"])
+            queryItems = buildQueryItems(from: enrichWithUserFields(parameters), excluding: ["id"])
 
         case .muteUser:
             guard let id = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
@@ -450,7 +380,7 @@ actor XToolOrchestrator {
             guard let id = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
             path = "/2/users/\(id)/blocking"
             method = .get
-            queryItems = buildQueryItems(from: parameters, excluding: ["id"])
+            queryItems = buildQueryItems(from: enrichWithUserFields(parameters), excluding: ["id"])
 
         case .blockUser:
             guard let id = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
@@ -483,7 +413,7 @@ actor XToolOrchestrator {
             guard let id = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
             path = "/2/tweets/\(id)/liking_users"
             method = .get
-            queryItems = buildQueryItems(from: parameters, excluding: ["id"])
+            queryItems = buildQueryItems(from: enrichWithTweetFields(parameters), excluding: ["id"])
 
         case .likeTweet:
             guard let id = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
@@ -502,14 +432,14 @@ actor XToolOrchestrator {
             guard let id = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
             path = "/2/users/\(id)/liked_tweets"
             method = .get
-            queryItems = buildQueryItems(from: parameters, excluding: ["id"])
+            queryItems = buildQueryItems(from: enrichWithTweetFields(parameters), excluding: ["id"])
 
         // MARK: - Retweets
         case .getRetweetedBy:
             guard let id = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
             path = "/2/tweets/\(id)/retweeted_by"
             method = .get
-            queryItems = buildQueryItems(from: parameters, excluding: ["id"])
+            queryItems = buildQueryItems(from: enrichWithTweetFields(parameters), excluding: ["id"])
 
         case .retweet:
             guard let id = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
@@ -528,7 +458,7 @@ actor XToolOrchestrator {
             guard let id = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
             path = "/2/tweets/\(id)/retweets"
             method = .get
-            queryItems = buildQueryItems(from: parameters, excluding: ["id"])
+            queryItems = buildQueryItems(from: enrichWithTweetFields(parameters), excluding: ["id"])
 
         // MARK: - Lists
         case .createList:
@@ -551,13 +481,13 @@ actor XToolOrchestrator {
             guard let id = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
             path = "/2/lists/\(id)"
             method = .get
-            queryItems = buildQueryItems(from: parameters, excluding: ["id"])
+            queryItems = buildQueryItems(from: enrichWithListFields(parameters), excluding: ["id"])
 
         case .getListMembers:
             guard let id = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
             path = "/2/lists/\(id)/members"
             method = .get
-            queryItems = buildQueryItems(from: parameters, excluding: ["id"])
+            queryItems = buildQueryItems(from: enrichWithUserFields(parameters), excluding: ["id"])
 
         case .addListMember:
             guard let id = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
@@ -576,13 +506,13 @@ actor XToolOrchestrator {
             guard let id = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
             path = "/2/lists/\(id)/tweets"
             method = .get
-            queryItems = buildQueryItems(from: parameters, excluding: ["id"])
+            queryItems = buildQueryItems(from: enrichWithTweetFields(parameters), excluding: ["id"])
 
         case .getListFollowers:
             guard let id = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
             path = "/2/lists/\(id)/followers"
             method = .get
-            queryItems = buildQueryItems(from: parameters, excluding: ["id"])
+            queryItems = buildQueryItems(from: enrichWithListFields(parameters), excluding: ["id"])
 
         case .pinList:
             guard let id = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
@@ -622,13 +552,13 @@ actor XToolOrchestrator {
         case .getDMEvents:
             path = "/2/dm_events"
             method = .get
-            queryItems = buildQueryItems(from: parameters)
+            queryItems = buildQueryItems(from: enrichWithDMFields(parameters))
 
         case .getConversationDMs:
             guard let id = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
             path = "/2/dm_conversations/\(id)/dm_events"
             method = .get
-            queryItems = buildQueryItems(from: parameters, excluding: ["id"])
+            queryItems = buildQueryItems(from: enrichWithDMFields(parameters), excluding: ["id"])
 
         case .deleteDMEvent:
             guard let dmEventId = parameters["dm_event_id"] else {
@@ -641,7 +571,7 @@ actor XToolOrchestrator {
             guard let id = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
             path = "/2/dm_events/\(id)"
             method = .get
-            queryItems = buildQueryItems(from: parameters, excluding: ["id"])
+            queryItems = buildQueryItems(from: enrichWithDMFields(parameters), excluding: ["id"])
 
         // MARK: - Bookmarks
         case .addBookmark:
@@ -661,51 +591,17 @@ actor XToolOrchestrator {
             guard let id = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
             path = "/2/users/\(id)/bookmarks"
             method = .get
-            queryItems = buildQueryItems(from: parameters, excluding: ["id"])
-
-        // MARK: - Spaces
-        case .getSpace:
-            guard let id = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
-            path = "/2/spaces/\(id)"
-            method = .get
-            queryItems = buildQueryItems(from: parameters, excluding: ["id"])
-
-        case .getSpaces:
-            path = "/2/spaces"
-            method = .get
-            queryItems = buildQueryItems(from: parameters)
-
-        case .getSpacesByCreator:
-            path = "/2/spaces/by/creator_ids"
-            method = .get
-            queryItems = buildQueryItems(from: parameters)
-
-        case .getSpaceTweets:
-            guard let id = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
-            path = "/2/spaces/\(id)/tweets"
-            method = .get
-            queryItems = buildQueryItems(from: parameters, excluding: ["id"])
-
-        case .searchSpaces:
-            path = "/2/spaces/search"
-            method = .get
-            queryItems = buildQueryItems(from: parameters)
-
-        case .getSpaceBuyers:
-            guard let id = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
-            path = "/2/spaces/\(id)/buyers"
-            method = .get
-            queryItems = buildQueryItems(from: parameters, excluding: ["id"])
+            queryItems = buildQueryItems(from: enrichWithTweetFields(parameters), excluding: ["id"])
 
         // MARK: - Trends
-        case .getTrendsByWoeid:
-            guard let woeid = parameters["woeid"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: woeid") }
-            path = "/2/trends/by/woeid/\(woeid)"
+        case .getPersonalizedTrends:
+            path = "/2/users/personalized_trends"
             method = .get
 
-        case .getPersonalizedTrends:
-            path = "/2/trends/personalized"
-            method = .get
+            // Always include all personalized trend fields
+            var enrichedParams = parameters
+            enrichedParams["personalized_trend.fields"] = "category,post_count,trend_name,trending_since"
+            queryItems = buildQueryItems(from: enrichedParams)
 
         // MARK: - Community Notes
         case .createNote:
@@ -731,22 +627,6 @@ actor XToolOrchestrator {
 
         case .getPostsEligibleForNotes:
             path = "/2/notes/search/posts_eligible_for_notes"
-            method = .get
-            queryItems = buildQueryItems(from: parameters)
-
-        // MARK: - Compliance
-        case .createComplianceJob:
-            path = "/2/compliance/jobs"
-            method = .post
-            bodyParams = parameters
-
-        case .getComplianceJob:
-            guard let id = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
-            path = "/2/compliance/jobs/\(id)"
-            method = .get
-
-        case .listComplianceJobs:
-            path = "/2/compliance/jobs"
             method = .get
             queryItems = buildQueryItems(from: parameters)
 
@@ -790,6 +670,8 @@ actor XToolOrchestrator {
             }
             path = "/2/media/\(mediaKey)"
             method = .get
+        case .confirmAction, .cancelAction:
+            throw XToolCallError.init(code: "999", message: "Not expected to handle confirmation/cancellation of actions in orchestrator.")
         }
 
         // Build URL

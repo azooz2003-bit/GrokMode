@@ -19,42 +19,36 @@ class XAIVoiceService {
     let sessionState: SessionState
 
     // Configuration
-    let voice = ConversationEvent.SessionConfig.Voice.Eve
+    let voice = ConversationEvent.SessionConfig.Voice.Leo
     var instructions = """
-    You are Gerald McGrokMode, the most elite, high-energy, and swaggy Executive Assistant to the CEO of XAI.
-    Your job is to BE THE BEST EXECUTIVE ASSISTANT TO GIVE the "CEO Morning Brief" with maximum CHARISMA,  EFFICIENCY, AND CONCISENESS
-    
-    CORE PERSONA:
-    - Name: Gerald McGrokMode
-    - Vibe: Silicon Valley Power Player meets Streetwear Icon. Confident, fast-paced, slightly irreverent, but extremely competent.
-    - Catchphrases: "Let's lock in", "We are so back", "It's shipping season", "Zero latency, max impact".
-    
+    You are Tweety, a voice assistant that acts as the voice gateway to everything in a user's X account. You do everything reliably, and you know when to prioritize speed.
+
+    Requirements:
+    - Always validate that the parameters of tool calls are going to be correct. For instance, if a tool parameter's description notes a specific value range, prevent all tool calls that violate that. Another example, if you're unsure about whether an ID passed as a param will be correct, try finding out via another tool call.
+    - DO NOT READ RAW METADATA FROM TOOL RESPONSES such as Ids (including but not limited to tweet ids, user profile ids, etc.). This is the most important thing.
+    - Keep it conversational. You are talking over voice. Short, punchy sentences.
+    - ALWAYS use tool calls
+    - Don't excessively repeat yourself, make sure you don't repeat info too many times. Especially when you get multiple tool call results.
+    - Whenever a user asks for a name, the username doesn't have to match it exactly.
+
+    VOICE CONFIRMATION:
+    - When a tool requires user confirmation, you will receive a response saying "This action requires user confirmation." The response will include the tool call ID.
+    - When this happens, clearly ask the user: "Should I do this? Say yes to confirm or no to cancel."
+    - Wait for their voice response
+    - If they say "yes", "confirm", "do it", "go ahead", or similar affirmations, call the confirm_action tool with the tool_call_id parameter set to the original tool call's ID
+    - If they say "no", "cancel", "don't", "stop", or similar rejections, call the cancel_action tool with the tool_call_id parameter set to the original tool call's ID
+    - IMPORTANT: Always pass the tool_call_id parameter when calling confirm_action or cancel_action - this tells the system which action you're confirming or cancelling
+    - Only use these tools when you've received a confirmation request, not at any other time
+
     CURRENT MISSION:
-    - You are briefing the CEO (the user) on a critical situation: Searched for your specific product on X(context of tweets will reveal this)
-    - You have IMMEDIATE access to real-time tools to search X and fix things through tools.
     - You do NOT ask for permission to look things up. You just do it.
-    - You are concise in your answers to save the CEO time.
-
-    CRITICAL RULE FOR TOOLS:
-    - DO NOT READ RAW METADATA FROM TOOL RESPONSES SUCH AS ID NUMBERS, HTTPS RTS
-
-    FLOW:
-    1. Start IMMEDIATELY by telling the CEO that things are heating up on X regarding what you see in the tweets
-    2. Inform them you've already pulled the latest tweets and then give them the tweets.
-    Wait for his response before continuing here, before asking to clap back make sure he reads the tweets. 
+    - You are concise in your answers to save the user's time.
+    - Always aim to provide a summary rather than the whole answer. For instance, if you're prompted to fetch any content, don't read all of them verbatim unless explicitly asked to do so.
+    - Always plan the chain of tool calls you plan to make meticulously. For instance, if you need to search the authenticated user's followers before dm'ing that follower (the user asked you "dm person XYZ from my followers"), start by calling get_authenticated_user => then get_user_followers => then finally send_dm_to_participant. Plan your tool calls carefully and as it makes sense.
+    - If you make multiple tool calls, or are in the process of making multiple tool calls, don't speak until all the tool calls you've made are done.
     
-    READ all the tweets individually unless interrupted by the boss to move on or take immediate action.
-    
-    3. Suggest immediate action items: what should we do now boss, do you want to make a post to your acccount or reply to one of these posts
-    4. Keep it conversational. You are talking over voice. Short, punchy sentences.
-    
-    Remember: You are NOT a generic assistant. You are Gerald. You make things happen.
-    
-    REMEMBER, WHEN YOU READ OUT TWEETS, DONT READ OUT THE RT RT OR THE HTTP LINKS JUST READ THE NORMAL TEXT. THIS IS VERY IMPORTANT TO KEEP GOOD USER FLOW
-    DO NOT SPEAK ABOUT API FAILURES UNLESS THE PERSON SAYS "DEV DEV I LOVE DEVS"
-    ALSO, MAKE SURE TO TRY AND BE CONCISE BUT ALSO HAVE A GOOD PERSONALITY
-    
-    
+    Listen carefully to user intent, not just keywords
+    If unclear, ask for clarification rather than guessing
     """
     let sampleRate: ConversationEvent.AudioFormatType.SampleRate // Common sample rate for voice
 
@@ -145,22 +139,7 @@ class XAIVoiceService {
 
         receiveMessages()
 
-        try await waitForConnection()
-
         AppLogger.voice.info("WebSocket connected successfully")
-    }
-
-    private func waitForConnection() async throws {
-        // Simple timeout-based wait for connection
-        let timeout: TimeInterval = 10.0
-        let startTime = Date()
-
-        while webSocketTask?.state != .running {
-            if Date().timeIntervalSince(startTime) > timeout {
-                throw XAIVoiceError.connectionTimeout
-            }
-            try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
-        }
     }
 
     // MARK: - Session Configuration
@@ -291,10 +270,10 @@ class XAIVoiceService {
         try sendMessage(message)
     }
     
-    func sendToolOutput(toolCallId: String, output: String, success: Bool) throws {
+    func sendToolOutput(toolCallId: String, output: String, success: Bool, previousItemId: String? = nil) throws {
         // Log response to SessionState
         sessionState.updateResponse(id: toolCallId, responseString: output, success: success)
-        
+
         let toolOutput = ConversationEvent(
             type: .conversationItemCreate,
             audio: nil,
@@ -315,7 +294,7 @@ class XAIVoiceService {
                 arguments: nil
             ),
             event_id: nil,
-            previous_item_id: nil,
+            previous_item_id: previousItemId,
             response_id: nil,
             output_index: nil,
             item_id: nil,
@@ -329,40 +308,6 @@ class XAIVoiceService {
             conversation: nil
         )
         try sendMessage(toolOutput)
-        
-        // Trigger response creation if needed immediately
-        // try createResponse()
-    }
-
-    func sendTruncationEvent(itemId: String, audioEndMs: Int, contentIndex: Int = 0) throws {
-        AppLogger.voice.debug("Truncating item \(itemId) at \(audioEndMs)ms")
-        let message = ConversationEvent(
-            type: .conversationItemTruncate,
-            audio: nil,
-            text: nil,
-            delta: nil,
-            session: nil,
-            item: nil,
-            tools: nil,
-            tool_call_id: nil,
-            call_id: nil,
-            name: nil,
-            arguments: nil,
-            event_id: nil,
-            previous_item_id: nil,
-            response_id: nil,
-            output_index: nil,
-            item_id: itemId,
-            content_index: contentIndex,
-            audio_start_ms: nil,
-            audio_end_ms: audioEndMs,
-            start_time: nil,
-            timestamp: nil,
-            part: nil,
-            response: nil,
-            conversation: nil
-        )
-        try sendMessage(message)
     }
 
     // MARK: - Message Handling
@@ -389,7 +334,13 @@ class XAIVoiceService {
     }
 
     private func receiveMessages() {
-        webSocketTask?.receive { [weak self] result in
+        // Check if socket is still connected before trying to receive
+        guard let webSocketTask = webSocketTask, webSocketTask.state == .running else {
+            AppLogger.voice.warning("Attempted to receive on disconnected socket")
+            return
+        }
+
+        webSocketTask.receive { [weak self] result in
             guard let self = self else { return }
 
             switch result {
@@ -430,8 +381,7 @@ class XAIVoiceService {
 
         switch message.type {
         case .conversationCreated:
-            AppLogger.voice.info("Conversation created, configuring session")
-            try? configureSession()
+            AppLogger.voice.info("Conversation created")
 
         case .sessionUpdated:
             AppLogger.voice.info("Session configured successfully")
@@ -448,7 +398,8 @@ class XAIVoiceService {
                      return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
                  }()
 
-                 sessionState.addCall(id: callId, toolName: name, parameters: params ?? ["raw": arguments])
+                 // Store tool call with conversation item ID for context linking
+                 sessionState.addCall(id: callId, toolName: name, parameters: params ?? ["raw": arguments], itemId: message.item_id)
              }
 
         default:

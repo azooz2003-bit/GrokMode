@@ -9,25 +9,28 @@ import Foundation
 import JSONSchema
 internal import OrderedCollections
 
+enum PreviewBehavior {
+    case none                      // Safe tools, auto-execute
+    case requiresConfirmation      // Needs user approval with preview
+}
+
 nonisolated
 enum XTool: String, CaseIterable, Identifiable {
     // MARK: - Posts/Tweets
     case createTweet = "create_tweet"
+    case replyToTweet = "reply_to_tweet"
+    case quoteTweet = "quote_tweet"
+    case createPollTweet = "create_poll_tweet"
     case deleteTweet = "delete_tweet"
     case getTweet = "get_tweet"
     case getTweets = "get_tweets"
+    case getUserTweets = "get_user_tweets"
+    case getUserMentions = "get_user_mentions"
+    case getHomeTimeline = "get_home_timeline"
     case searchRecentTweets = "search_recent_tweets"
     case searchAllTweets = "search_all_tweets"
     case getRecentTweetCounts = "get_recent_tweet_counts"
     case getAllTweetCounts = "get_all_tweet_counts"
-
-    // MARK: - Streaming
-    case streamFilteredTweets = "stream_filtered_tweets"
-    case manageStreamRules = "manage_stream_rules"
-    case getStreamRules = "get_stream_rules"
-    case getStreamRuleCounts = "get_stream_rule_counts"
-    case streamSample = "stream_sample"
-    case streamSample10 = "stream_sample_10"
 
     // MARK: - Users
     case getUserById = "get_user_by_id"
@@ -87,16 +90,7 @@ enum XTool: String, CaseIterable, Identifiable {
     case removeBookmark = "remove_bookmark"
     case getUserBookmarks = "get_user_bookmarks"
 
-    // MARK: - Spaces
-    case getSpace = "get_space"
-    case getSpaces = "get_spaces"
-    case getSpacesByCreator = "get_spaces_by_creator"
-    case getSpaceTweets = "get_space_tweets"
-    case searchSpaces = "search_spaces"
-    case getSpaceBuyers = "get_space_buyers"
-
     // MARK: - Trends
-    case getTrendsByWoeid = "get_trends_by_woeid"
     case getPersonalizedTrends = "get_personalized_trends"
 
     // MARK: - Community Notes
@@ -105,12 +99,6 @@ enum XTool: String, CaseIterable, Identifiable {
     case evaluateNote = "evaluate_note"
     case getNotesWritten = "get_notes_written"
     case getPostsEligibleForNotes = "get_posts_eligible_for_notes"
-
-    // MARK: - Compliance
-    case createComplianceJob = "create_compliance_job"
-    case getComplianceJob = "get_compliance_job"
-
-    case listComplianceJobs = "list_compliance_jobs"
 
     // MARK: - Media
     case uploadMedia = "upload_media"
@@ -121,6 +109,10 @@ enum XTool: String, CaseIterable, Identifiable {
     case createMediaMetadata = "create_media_metadata"
     case getMediaAnalytics = "get_media_analytics"
 
+    // MARK: - Voice Confirmation
+    case confirmAction = "confirm_action"
+    case cancelAction = "cancel_action"
+
     var id: String { rawValue }
     var name: String { rawValue }
 
@@ -128,21 +120,19 @@ enum XTool: String, CaseIterable, Identifiable {
         switch self {
         // Posts/Tweets
         case .createTweet: return "Create or edit a tweet"
+        case .replyToTweet: return "Reply to a specific tweet."
+        case .quoteTweet: return "Quote tweet a specific tweet."
+        case .createPollTweet: return "Create a poll tweet"
         case .deleteTweet: return "Delete a specific tweet by ID"
         case .getTweet: return "Get details of a specific tweet by ID"
         case .getTweets: return "Get multiple tweets by their IDs"
+        case .getUserTweets: return "Get tweets posted by a specific user"
+        case .getUserMentions: return "Get tweets mentioning a specific user"
+        case .getHomeTimeline: return "Get the authenticated user's home timeline"
         case .searchRecentTweets: return "Search tweets from the last 7 days"
         case .searchAllTweets: return "Search tweets from the full archive"
         case .getRecentTweetCounts: return "Get tweet counts for recent tweets"
         case .getAllTweetCounts: return "Get tweet counts from full archive"
-
-        // Streaming
-        case .streamFilteredTweets: return "Stream tweets matching active rules"
-        case .manageStreamRules: return "Add or delete streaming rules"
-        case .getStreamRules: return "Get active streaming rules"
-        case .getStreamRuleCounts: return "Get streaming rule counts"
-        case .streamSample: return "Stream 1% sample of tweets"
-        case .streamSample10: return "Stream 10% sample of tweets"
 
         // Users
         case .getUserById: return "Get user details by user ID"
@@ -202,16 +192,7 @@ enum XTool: String, CaseIterable, Identifiable {
         case .removeBookmark: return "Remove a tweet from bookmarks"
         case .getUserBookmarks: return "Get user's bookmarked tweets"
 
-        // Spaces
-        case .getSpace: return "Get space details by ID"
-        case .getSpaces: return "Get multiple spaces by IDs"
-        case .getSpacesByCreator: return "Get spaces created by specific users"
-        case .getSpaceTweets: return "Get tweets shared in a space"
-        case .searchSpaces: return "Search spaces by query"
-        case .getSpaceBuyers: return "Get users who purchased space tickets"
-
         // Trends
-        case .getTrendsByWoeid: return "Get trends for a location by WOEID"
         case .getPersonalizedTrends: return "Get personalized trending topics"
 
         // Community Notes
@@ -221,11 +202,6 @@ enum XTool: String, CaseIterable, Identifiable {
         case .getNotesWritten: return "Get notes written by user"
         case .getPostsEligibleForNotes: return "Get posts eligible for notes"
 
-        // Compliance
-        case .createComplianceJob: return "Create a compliance job"
-        case .getComplianceJob: return "Get compliance job details"
-        case .listComplianceJobs: return "List all compliance jobs"
-
         // Media
         case .uploadMedia: return "Upload media file"
         case .getMediaStatus: return "Get media upload status"
@@ -234,6 +210,10 @@ enum XTool: String, CaseIterable, Identifiable {
         case .finalizeChunkedUpload: return "Finalize chunked upload"
         case .createMediaMetadata: return "Create media metadata"
         case .getMediaAnalytics: return "Get media analytics"
+
+        // Voice Confirmation
+        case .confirmAction: return "Confirms and executes the pending action when the user says 'yes', 'confirm', 'do it', or similar affirmations"
+        case .cancelAction: return "Cancels the pending action when the user says 'no', 'cancel', 'don't', or similar rejections"
         }
     }
 
@@ -244,31 +224,13 @@ enum XTool: String, CaseIterable, Identifiable {
             return .object(
                 properties: [
                     "text": .string(description: "The text content of the tweet"),
-                    "reply": .object(
-                        properties: [
-                            "in_reply_to_tweet_id": .string(description: "Tweet ID to reply to"),
-                            "exclude_reply_user_ids": .array(description: "User IDs to exclude from reply", items: .string())
-                        ],
-                        required: ["in_reply_to_tweet_id"]
-                    ),
-                    "quote_tweet_id": .string(description: "Tweet ID to quote"),
-                    "media": .object(
-                        properties: [
-                            "media_ids": .array(description: "Media IDs to attach", items: .string()),
-                            "tagged_user_ids": .array(description: "IDs of users tagged in media", items: .string())
-                        ],
-                        required: ["media_ids"]
-                    ),
-                    "poll": .object(
-                        properties: [
-                            "options": .array(description: "Poll options, the text of a poll choice", items: .string()),
-                            "duration_minutes": .integer(description: "Poll duration in minutes"),
-                            "reply_settings": .string(description: "Settings to indicate who can reply to the Tweet.", enum: [.string("following"), .string("mentionedUsers"), .string("subscribers"), .string("verified")])
-                        ],
-                        required: ["options", "duration_minutes"]
-                    ),
-                    "direct_message_deep_link": .string(description: "Link to take the conversation from the public timeline to a private Direct Message."),
-                    "for_super_followers_only": .boolean(description: "Restrict to super followers only", default: false),
+//                    "media": .object(
+//                        properties: [
+//                            "media_ids": .array(description: "Media IDs to attach", items: .string()),
+//                            "tagged_user_ids": .array(description: "IDs of users tagged in media", items: .string())
+//                        ],
+//                        required: ["media_ids"]
+//                    ),
                     "reply_settings": .string(
                         description: "Who can reply to the tweet. Note: To allow everyone to reply, do not include this field in the request.",
                         enum: ["following", "mentionedUsers", "subscribers", "verified"]
@@ -276,11 +238,73 @@ enum XTool: String, CaseIterable, Identifiable {
                 ],
                 required: ["text"]
             )
-
+        case .replyToTweet:
+            return .object(
+                properties: [
+                    "text": .string(description: "The text content of the reply tweet."),
+                    "reply": .object(
+                        properties: [
+                            "in_reply_to_tweet_id": .string(description: "The ID of the tweet you would like to reply to."),
+//                            "exclude_reply_user_ids": .array(description: "User IDs to exclude from reply", items: .string())
+                        ],
+                        required: ["in_reply_to_tweet_id"]
+                    ),
+//                    "media": .object(
+//                        properties: [
+//                            "media_ids": .array(description: "Media IDs to attach", items: .string()),
+//                            "tagged_user_ids": .array(description: "IDs of users tagged in media", items: .string())
+//                        ],
+//                        required: ["media_ids"]
+//                    ),
+                    "reply_settings": .string(
+                        description: "Who can reply to the tweet. Note: To allow everyone to reply, do not include this field in the request.",
+                        enum: ["following", "mentionedUsers", "subscribers", "verified"]
+                    )
+                ],
+                required: ["text", "reply"]
+            )
+        case .quoteTweet:
+            return .object(
+                properties: [
+                    "text": .string(description: "The text content of the tweet"),
+                    "quote_tweet_id": .string(description: "The ID of the tweet you would like to quote tweet. Make sure that a tweet with this ID exists before passing it."),
+//                    "media": .object(
+//                        properties: [
+//                            "media_ids": .array(description: "Media IDs to attach", items: .string()),
+//                            "tagged_user_ids": .array(description: "IDs of users tagged in media", items: .string())
+//                        ],
+//                        required: ["media_ids"]
+//                    ),
+                    "reply_settings": .string(
+                        description: "Who can reply to the tweet. Note: To allow everyone to reply, do not include this field in the request.",
+                        enum: ["following", "mentionedUsers", "subscribers", "verified"]
+                    )
+                ],
+                required: ["text", "quote_tweet_id"]
+            )
+        case .createPollTweet:
+            return .object(
+                properties: [
+                    "text": .string(description: "The text content of the tweet"),
+                    "poll": .object(
+                        properties: [
+                            "options": .array(description: "An array of poll choices as strings. Minimum of 2 choices, maximum of 4 choices.", items: .string(description: "The text to display for the choice. A minimum of 1 character, and maximum of 25 characters is allowed per choice.")),
+                            "duration_minutes": .integer(description: "Poll duration in minutes. Values must be within this range: 5 <= x <= 10080."),
+                            "reply_settings": .string(description: "Settings to indicate who can reply to the poll.", enum: [.string("following"), .string("mentionedUsers"), .string("subscribers"), .string("verified")])
+                        ],
+                        required: ["options", "duration_minutes"]
+                    ),
+                    "reply_settings": .string(
+                        description: "Who can reply to the tweet. Note: To allow everyone to reply, do not include this field in the request.",
+                        enum: ["following", "mentionedUsers", "subscribers", "verified"]
+                    )
+                ],
+                required: ["text", "poll"]
+            )
         case .deleteTweet:
             return .object(
                 properties: [
-                    "id": .string(description: "The tweet ID to delete")
+                    "id": .string(description: "The tweet ID to delete. Make sure that a tweet with this ID exists and belongs to the authenticated user before passing it.")
                 ],
                 required: ["id"]
             )
@@ -288,71 +312,7 @@ enum XTool: String, CaseIterable, Identifiable {
         case .getTweet:
             return .object(
                 properties: [
-                    "id": .string(description: "The tweet ID"),
-                    "tweet.fields": .array(
-                        description: "A comma separated list of Tweet fields to display.",
-                        items: .string(
-                            enum: [
-                                "article", "attachments", "author_id", "card_uri", "community_id",
-                                "context_annotations", "conversation_id", "created_at", "display_text_range",
-                                "edit_controls", "edit_history_tweet_ids", "entities", "geo", "id",
-                                "in_reply_to_user_id", "lang", "media_metadata", "non_public_metrics",
-                                "note_tweet", "organic_metrics", "possibly_sensitive", "promoted_metrics",
-                                "public_metrics", "referenced_tweets", "reply_settings", "scopes",
-                                "source", "suggested_source_links", "text", "withheld"
-                            ]
-                        )
-                    ),
-                    "expansions": .array(
-                        description: " The list of fields you can expand for a Tweet object. If the field has an ID, it can be expanded into a full object.",
-                        items: .string(
-                            enum: [
-                                "article.cover_media", "article.media_entities", "attachments.media_keys",
-                                "attachments.media_source_tweet", "attachments.poll_ids", "author_id",
-                                "edit_history_tweet_ids", "entities.mentions.username", "geo.place_id",
-                                "in_reply_to_user_id", "entities.note.mentions.username", "referenced_tweets.id",
-                                "referenced_tweets.id.attachments.media_keys", "referenced_tweets.id.author_id"
-                            ]
-                        )
-                    ),
-                    "media.fields": .array(
-                        description: "A comma separated list of Media fields to display",
-                        items: .string(
-                            enum: [
-                                "alt_text", "duration_ms", "height", "media_key", "non_public_metrics",
-                                "organic_metrics", "preview_image_url", "promoted_metrics", "public_metrics",
-                                "type", "url", "variants", "width"
-                            ]
-                        )
-                    ),
-                    "poll.fields": .array(
-                        description: "A comma separated list of Poll fields to display",
-                        items: .string(
-                            enum: [
-                                "duration_minutes", "end_datetime", "id", "options", "voting_status"
-                            ]
-                        )
-                    ),
-                    "user.fields": .array(
-                        description: "A comma separated list of User fields to display",
-                        items: .string(
-                            enum: [
-                                "affiliation", "confirmed_email", "connection_status", "created_at", "description",
-                                "entities", "id", "is_identity_verified", "location", "most_recent_tweet_id",
-                                "name", "parody", "pinned_tweet_id", "profile_banner_url", "profile_image_url",
-                                "protected", "public_metrics", "receives_your_dm", "subscription", "subscription_type",
-                                "url", "username", "verified", "verified_followers_count", "verified_type", "withheld"
-                            ]
-                        )
-                    ),
-                    "place.fields": .array(
-                        description: "A comma separated list of Place fields to display",
-                        items: .string(
-                            enum: [
-                                "contained_within", "country", "country_code", "full_name", "geo", "id", "name", "place_type"
-                            ]
-                        )
-                    )
+                    "id": .string(description: "The tweet ID")
                 ],
                 required: ["id"]
             )
@@ -361,150 +321,43 @@ enum XTool: String, CaseIterable, Identifiable {
             return .object(
                 properties: [
                     "ids": .array(description: "Tweet IDs", items: .string()),
-                    "tweet.fields": .array(
-                        description: "A comma separated list of Tweet fields to display.",
-                        items: .string(
-                            enum: [
-                                "article", "attachments", "author_id", "card_uri", "community_id",
-                                "context_annotations", "conversation_id", "created_at", "display_text_range",
-                                "edit_controls", "edit_history_tweet_ids", "entities", "geo", "id",
-                                "in_reply_to_user_id", "lang", "media_metadata", "non_public_metrics",
-                                "note_tweet", "organic_metrics", "possibly_sensitive", "promoted_metrics",
-                                "public_metrics", "referenced_tweets", "reply_settings", "scopes",
-                                "source", "suggested_source_links", "text", "withheld"
-                            ]
-                        )
-                    ),
-                    "expansions": .array(
-                        description: " The list of fields you can expand for a Tweet object. If the field has an ID, it can be expanded into a full object.",
-                        items: .string(
-                            enum: [
-                                "article.cover_media", "article.media_entities", "attachments.media_keys",
-                                "attachments.media_source_tweet", "attachments.poll_ids", "author_id",
-                                "edit_history_tweet_ids", "entities.mentions.username", "geo.place_id",
-                                "in_reply_to_user_id", "entities.note.mentions.username", "referenced_tweets.id",
-                                "referenced_tweets.id.attachments.media_keys", "referenced_tweets.id.author_id"
-                            ]
-                        )
-                    ),
-                    "media.fields": .array(
-                        description: "A comma separated list of Media fields to display",
-                        items: .string(
-                            enum: [
-                                "alt_text", "duration_ms", "height", "media_key", "non_public_metrics",
-                                "organic_metrics", "preview_image_url", "promoted_metrics", "public_metrics",
-                                "type", "url", "variants", "width"
-                            ]
-                        )
-                    ),
-                    "poll.fields": .array(
-                        description: "A comma separated list of Poll fields to display",
-                        items: .string(
-                            enum: [
-                                "duration_minutes", "end_datetime", "id", "options", "voting_status"
-                            ]
-                        )
-                    ),
-                    "user.fields": .array(
-                        description: "A comma separated list of User fields to display",
-                        items: .string(
-                            enum: [
-                                "affiliation", "confirmed_email", "connection_status", "created_at", "description",
-                                "entities", "id", "is_identity_verified", "location", "most_recent_tweet_id",
-                                "name", "parody", "pinned_tweet_id", "profile_banner_url", "profile_image_url",
-                                "protected", "public_metrics", "receives_your_dm", "subscription", "subscription_type",
-                                "url", "username", "verified", "verified_followers_count", "verified_type", "withheld"
-                            ]
-                        )
-                    ),
-                    "place.fields": .array(
-                        description: "A comma separated list of Place fields to display",
-                        items: .string(
-                            enum: [
-                                "contained_within", "country", "country_code", "full_name", "geo", "id", "name", "place_type"
-                            ]
-                        )
-                    )
                 ],
                 required: ["ids"]
+            )
+
+        case .getUserTweets:
+            return .object(
+                properties: [
+                    "id": .string(description: "The user ID whose tweets to retrieve"),
+                    "max_results": .integer(description: "Maximum number of tweets to return. Must be between 5 and 100. Defaults to 10."),
+                    "exclude": .array(description: "Tweet types to exclude (e.g., 'retweets', 'replies')", items: .string(enum: ["retweets", "replies"]))
+                ],
+                required: ["id"]
+            )
+
+        case .getUserMentions:
+            return .object(
+                properties: [
+                    "id": .string(description: "The user ID whose mentions to retrieve"),
+                    "max_results": .integer(description: "Maximum number of mentions to return. Must be between 5 and 100. Defaults to 10.")
+                ],
+                required: ["id"]
+            )
+
+        case .getHomeTimeline:
+            return .object(
+                properties: [
+                    "max_results": .integer(description: "Maximum number of tweets to return. Must be between 1 and 100. Defaults to 10."),
+                    "exclude": .array(description: "Tweet types to exclude (e.g., 'retweets', 'replies')", items: .string(enum: ["retweets", "replies"]))
+                ]
             )
 
         case .searchRecentTweets:
             return .object(
                 properties: [
                     "query": .string(description: "Search query"),
-                    "start_time": .string(description: "YYYY-MM-DDTHH:mm:ssZ. The oldest UTC timestamp from which the Posts will be provided. Timestamp is in second granularity and is inclusive (i.e. 12:00:01 includes the first second of the minute).", examples: ["2025-01-01T00:00:00Z"]),
-                    "end_time": .string(description: "YYYY-MM-DDTHH:mm:ssZ. The newest, most recent UTC timestamp to which the Posts will be provided. Timestamp is in second granularity and is exclusive (i.e. 12:00:01 excludes the first second of the minute).", examples: ["2025-01-01T00:00:00Z"]),
-                    "since_id": .string(description: "Tweet ID for filtering results. Returns results with a Post ID greater than (that is, more recent than) the specified ID."),
-                    "until_id": .string(description: "Tweet ID for filtering results. Returns results with a Post ID less than (that is, older than) the specified ID."),
                     "max_results": .integer(description: "The maximum number of search results to be returned by a request. Should be at least 10 and at most 100, otherwise API will return error.", minimum: 10, maximum: 100),
-                    "next_token": .string(description: "This parameter is used to get the next 'page' of results. The value used with the parameter is pulled directly from the response provided by the API, and should not be modified. "),
-                    "pagination_token": .string(description: "This parameter is used to get the next 'page' of results. The value used with the parameter is pulled directly from the response provided by the API, and should not be modified."),
                     "sort_order": .string(description: "This order in which to return results.", enum: ["recency", "relevancy"]),
-                    "tweet.fields": .array(
-                        description: "A comma separated list of Tweet fields to display.",
-                        items: .string(
-                            enum: [
-                                "article", "attachments", "author_id", "card_uri", "community_id",
-                                "context_annotations", "conversation_id", "created_at", "display_text_range",
-                                "edit_controls", "edit_history_tweet_ids", "entities", "geo", "id",
-                                "in_reply_to_user_id", "lang", "media_metadata", "non_public_metrics",
-                                "note_tweet", "organic_metrics", "possibly_sensitive", "promoted_metrics",
-                                "public_metrics", "referenced_tweets", "reply_settings", "scopes",
-                                "source", "suggested_source_links", "text", "withheld"
-                            ]
-                        )
-                    ),
-                    "expansions": .array(
-                        description: " The list of fields you can expand for a Tweet object. If the field has an ID, it can be expanded into a full object.",
-                        items: .string(
-                            enum: [
-                                "article.cover_media", "article.media_entities", "attachments.media_keys",
-                                "attachments.media_source_tweet", "attachments.poll_ids", "author_id",
-                                "edit_history_tweet_ids", "entities.mentions.username", "geo.place_id",
-                                "in_reply_to_user_id", "entities.note.mentions.username", "referenced_tweets.id",
-                                "referenced_tweets.id.attachments.media_keys", "referenced_tweets.id.author_id"
-                            ]
-                        )
-                    ),
-                    "media.fields": .array(
-                        description: "A comma separated list of Media fields to display",
-                        items: .string(
-                            enum: [
-                                "alt_text", "duration_ms", "height", "media_key", "non_public_metrics",
-                                "organic_metrics", "preview_image_url", "promoted_metrics", "public_metrics",
-                                "type", "url", "variants", "width"
-                            ]
-                        )
-                    ),
-                    "poll.fields": .array(
-                        description: "A comma separated list of Poll fields to display",
-                        items: .string(
-                            enum: [
-                                "duration_minutes", "end_datetime", "id", "options", "voting_status"
-                            ]
-                        )
-                    ),
-                    "user.fields": .array(
-                        description: "A comma separated list of User fields to display",
-                        items: .string(
-                            enum: [
-                                "affiliation", "confirmed_email", "connection_status", "created_at", "description",
-                                "entities", "id", "is_identity_verified", "location", "most_recent_tweet_id",
-                                "name", "parody", "pinned_tweet_id", "profile_banner_url", "profile_image_url",
-                                "protected", "public_metrics", "receives_your_dm", "subscription", "subscription_type",
-                                "url", "username", "verified", "verified_followers_count", "verified_type", "withheld"
-                            ]
-                        )
-                    ),
-                    "place.fields": .array(
-                        description: "A comma separated list of Place fields to display",
-                        items: .string(
-                            enum: [
-                                "contained_within", "country", "country_code", "full_name", "geo", "id", "name", "place_type"
-                            ]
-                        )
-                    )
                 ],
                 required: ["query"]
             )
@@ -513,78 +366,8 @@ enum XTool: String, CaseIterable, Identifiable {
             return .object(
                 properties: [
                     "query": .string(description: "Search query"),
-                    "start_time": .string(description: "YYYY-MM-DDTHH:mm:ssZ. The oldest UTC timestamp from which the Posts will be provided. Timestamp is in second granularity and is inclusive (i.e. 12:00:01 includes the first second of the minute).", examples: ["2025-01-01T00:00:00Z"]),
-                    "end_time": .string(description: "YYYY-MM-DDTHH:mm:ssZ. The newest, most recent UTC timestamp to which the Posts will be provided. Timestamp is in second granularity and is exclusive (i.e. 12:00:01 excludes the first second of the minute).", examples: ["2025-01-01T00:00:00Z"]),
-                    "since_id": .string(description: "Tweet ID for filtering results. Returns results with a Post ID greater than (that is, more recent than) the specified ID."),
-                    "until_id": .string(description: "Tweet ID for filtering results. Returns results with a Post ID less than (that is, older than) the specified ID."),
                     "max_results": .integer(description: "The maximum number of search results to be returned by a request. Should be at least 10 and at most 500, otherwise API will return error.", minimum: 10, maximum: 500),
-                    "next_token": .string(description: "This parameter is used to get the next 'page' of results. The value used with the parameter is pulled directly from the response provided by the API, and should not be modified. "),
-                    "pagination_token": .string(description: "This parameter is used to get the next 'page' of results. The value used with the parameter is pulled directly from the response provided by the API, and should not be modified."),
                     "sort_order": .string(description: "This order in which to return results.", enum: ["recency", "relevancy"]),
-                    "tweet.fields": .array(
-                        description: "A comma separated list of Tweet fields to display.",
-                        items: .string(
-                            enum: [
-                                "article", "attachments", "author_id", "card_uri", "community_id",
-                                "context_annotations", "conversation_id", "created_at", "display_text_range",
-                                "edit_controls", "edit_history_tweet_ids", "entities", "geo", "id",
-                                "in_reply_to_user_id", "lang", "media_metadata", "non_public_metrics",
-                                "note_tweet", "organic_metrics", "possibly_sensitive", "promoted_metrics",
-                                "public_metrics", "referenced_tweets", "reply_settings", "scopes",
-                                "source", "suggested_source_links", "text", "withheld"
-                            ]
-                        )
-                    ),
-                    "expansions": .array(
-                        description: " The list of fields you can expand for a Tweet object. If the field has an ID, it can be expanded into a full object.",
-                        items: .string(
-                            enum: [
-                                "article.cover_media", "article.media_entities", "attachments.media_keys",
-                                "attachments.media_source_tweet", "attachments.poll_ids", "author_id",
-                                "edit_history_tweet_ids", "entities.mentions.username", "geo.place_id",
-                                "in_reply_to_user_id", "entities.note.mentions.username", "referenced_tweets.id",
-                                "referenced_tweets.id.attachments.media_keys", "referenced_tweets.id.author_id"
-                            ]
-                        )
-                    ),
-                    "media.fields": .array(
-                        description: "A comma separated list of Media fields to display",
-                        items: .string(
-                            enum: [
-                                "alt_text", "duration_ms", "height", "media_key", "non_public_metrics",
-                                "organic_metrics", "preview_image_url", "promoted_metrics", "public_metrics",
-                                "type", "url", "variants", "width"
-                            ]
-                        )
-                    ),
-                    "poll.fields": .array(
-                        description: "A comma separated list of Poll fields to display",
-                        items: .string(
-                            enum: [
-                                "duration_minutes", "end_datetime", "id", "options", "voting_status"
-                            ]
-                        )
-                    ),
-                    "user.fields": .array(
-                        description: "A comma separated list of User fields to display",
-                        items: .string(
-                            enum: [
-                                "affiliation", "confirmed_email", "connection_status", "created_at", "description",
-                                "entities", "id", "is_identity_verified", "location", "most_recent_tweet_id",
-                                "name", "parody", "pinned_tweet_id", "profile_banner_url", "profile_image_url",
-                                "protected", "public_metrics", "receives_your_dm", "subscription", "subscription_type",
-                                "url", "username", "verified", "verified_followers_count", "verified_type", "withheld"
-                            ]
-                        )
-                    ),
-                    "place.fields": .array(
-                        description: "A comma separated list of Place fields to display",
-                        items: .string(
-                            enum: [
-                                "contained_within", "country", "country_code", "full_name", "geo", "id", "name", "place_type"
-                            ]
-                        )
-                    )
                 ],
                 required: ["query"]
             )
@@ -593,10 +376,6 @@ enum XTool: String, CaseIterable, Identifiable {
             return .object(
                 properties: [
                     "query": .string(description: "Search query"),
-                    "start_time": .string(description: "ISO 8601 datetime"),
-                    "end_time": .string(description: "ISO 8601 datetime"),
-                    "since_id": .string(description: "Tweet ID for filtering"),
-                    "until_id": .string(description: "Tweet ID for filtering"),
                     "granularity": .string(description: "Time granularity", enum: ["minute", "hour", "day"])
                 ],
                 required: ["query"]
@@ -606,87 +385,16 @@ enum XTool: String, CaseIterable, Identifiable {
             return .object(
                 properties: [
                     "query": .string(description: "Search query"),
-                    "start_time": .string(description: "ISO 8601 datetime"),
-                    "end_time": .string(description: "ISO 8601 datetime"),
-                    "since_id": .string(description: "Tweet ID for filtering"),
-                    "until_id": .string(description: "Tweet ID for filtering"),
                     "granularity": .string(description: "Time granularity", enum: ["minute", "hour", "day"])
                 ],
                 required: ["query"]
-            )
-
-        // MARK: - Streaming
-        case .streamFilteredTweets:
-            return .object(
-                properties: [
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "media.fields": .string(description: "Comma-separated list of media fields"),
-                    "place.fields": .string(description: "Comma-separated list of place fields"),
-                    "poll.fields": .string(description: "Comma-separated list of poll fields"),
-                    "tweet.fields": .string(description: "Comma-separated list of tweet fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields")
-                ]
-            )
-
-        case .manageStreamRules:
-            return .object(
-                properties: [
-                    "add": .array(
-                        description: "Rules to add",
-                        items: .object(
-                            properties: [
-                                "value": .string(description: "Rule filter query"),
-                                "tag": .string(description: "Rule tag")
-                            ],
-                            required: ["value"]
-                        )
-                    ),
-                    "delete": .object(
-                        properties: [
-                            "ids": .array(description: "Rule IDs to delete", items: .string())
-                        ]
-                    )
-                ]
-            )
-
-        case .getStreamRules:
-            return .object(properties: [:])
-
-        case .getStreamRuleCounts:
-            return .object(properties: [:])
-
-        case .streamSample:
-            return .object(
-                properties: [
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "media.fields": .string(description: "Comma-separated list of media fields"),
-                    "place.fields": .string(description: "Comma-separated list of place fields"),
-                    "poll.fields": .string(description: "Comma-separated list of poll fields"),
-                    "tweet.fields": .string(description: "Comma-separated list of tweet fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields")
-                ]
-            )
-
-        case .streamSample10:
-            return .object(
-                properties: [
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "media.fields": .string(description: "Comma-separated list of media fields"),
-                    "place.fields": .string(description: "Comma-separated list of place fields"),
-                    "poll.fields": .string(description: "Comma-separated list of poll fields"),
-                    "tweet.fields": .string(description: "Comma-separated list of tweet fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields")
-                ]
             )
 
         // MARK: - Users
         case .getUserById:
             return .object(
                 properties: [
-                    "id": .string(description: "The user ID"),
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "tweet.fields": .string(description: "Comma-separated list of tweet fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields")
+                    "id": .string(description: "The user ID")
                 ],
                 required: ["id"]
             )
@@ -694,10 +402,7 @@ enum XTool: String, CaseIterable, Identifiable {
         case .getUserByUsername:
             return .object(
                 properties: [
-                    "username": .string(description: "The username without @"),
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "tweet.fields": .string(description: "Comma-separated list of tweet fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields")
+                    "username": .string(description: "The username without @")
                 ],
                 required: ["username"]
             )
@@ -705,10 +410,7 @@ enum XTool: String, CaseIterable, Identifiable {
         case .getUsersById:
             return .object(
                 properties: [
-                    "ids": .array(description: "User IDs", items: .string()),
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "tweet.fields": .string(description: "Comma-separated list of tweet fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields")
+                    "ids": .array(description: "User IDs", items: .string())
                 ],
                 required: ["ids"]
             )
@@ -716,21 +418,14 @@ enum XTool: String, CaseIterable, Identifiable {
         case .getUsersByUsername:
             return .object(
                 properties: [
-                    "usernames": .array(description: "Usernames without @", items: .string()),
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "tweet.fields": .string(description: "Comma-separated list of tweet fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields")
+                    "usernames": .array(description: "Usernames without @", items: .string())
                 ],
                 required: ["usernames"]
             )
 
         case .getAuthenticatedUser:
             return .object(
-                properties: [
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "tweet.fields": .string(description: "Comma-separated list of tweet fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields")
-                ]
+                properties: [:]
             )
 
         case .getUserFollowing:
@@ -738,10 +433,7 @@ enum XTool: String, CaseIterable, Identifiable {
                 properties: [
                     "id": .string(description: "The user ID"),
                     "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 1000),
-                    "pagination_token": .string(description: "Pagination token"),
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "tweet.fields": .string(description: "Comma-separated list of tweet fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields")
+                    "pagination_token": .string(description: "Pagination token")
                 ],
                 required: ["id"]
             )
@@ -768,11 +460,6 @@ enum XTool: String, CaseIterable, Identifiable {
             return .object(
                 properties: [
                     "id": .string(description: "The user ID"),
-                    "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 1000),
-                    "pagination_token": .string(description: "Pagination token"),
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "tweet.fields": .string(description: "Comma-separated list of tweet fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields")
                 ],
                 required: ["id"]
             )
@@ -782,10 +469,6 @@ enum XTool: String, CaseIterable, Identifiable {
                 properties: [
                     "id": .string(description: "The user ID"),
                     "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 1000),
-                    "pagination_token": .string(description: "Pagination token"),
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "tweet.fields": .string(description: "Comma-separated list of tweet fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields")
                 ],
                 required: ["id"]
             )
@@ -813,10 +496,6 @@ enum XTool: String, CaseIterable, Identifiable {
                 properties: [
                     "id": .string(description: "The user ID"),
                     "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 1000),
-                    "pagination_token": .string(description: "Pagination token"),
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "tweet.fields": .string(description: "Comma-separated list of tweet fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields")
                 ],
                 required: ["id"]
             )
@@ -863,13 +542,7 @@ enum XTool: String, CaseIterable, Identifiable {
                 properties: [
                     "id": .string(description: "The tweet ID"),
                     "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100),
-                    "pagination_token": .string(description: "Pagination token"),
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "media.fields": .string(description: "Comma-separated list of media fields"),
-                    "place.fields": .string(description: "Comma-separated list of place fields"),
-                    "poll.fields": .string(description: "Comma-separated list of poll fields"),
-                    "tweet.fields": .string(description: "Comma-separated list of tweet fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields")
+                    "pagination_token": .string(description: "Pagination token")
                 ],
                 required: ["id"]
             )
@@ -897,13 +570,6 @@ enum XTool: String, CaseIterable, Identifiable {
                 properties: [
                     "id": .string(description: "The user ID"),
                     "max_results": .integer(description: "Maximum results", minimum: 5, maximum: 100),
-                    "pagination_token": .string(description: "Pagination token"),
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "media.fields": .string(description: "Comma-separated list of media fields"),
-                    "place.fields": .string(description: "Comma-separated list of place fields"),
-                    "poll.fields": .string(description: "Comma-separated list of poll fields"),
-                    "tweet.fields": .string(description: "Comma-separated list of tweet fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields")
                 ],
                 required: ["id"]
             )
@@ -914,13 +580,6 @@ enum XTool: String, CaseIterable, Identifiable {
                 properties: [
                     "id": .string(description: "The tweet ID"),
                     "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100),
-                    "pagination_token": .string(description: "Pagination token"),
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "media.fields": .string(description: "Comma-separated list of media fields"),
-                    "place.fields": .string(description: "Comma-separated list of place fields"),
-                    "poll.fields": .string(description: "Comma-separated list of poll fields"),
-                    "tweet.fields": .string(description: "Comma-separated list of tweet fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields")
                 ],
                 required: ["id"]
             )
@@ -948,13 +607,6 @@ enum XTool: String, CaseIterable, Identifiable {
                 properties: [
                     "id": .string(description: "The tweet ID"),
                     "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100),
-                    "pagination_token": .string(description: "Pagination token"),
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "media.fields": .string(description: "Comma-separated list of media fields"),
-                    "place.fields": .string(description: "Comma-separated list of place fields"),
-                    "poll.fields": .string(description: "Comma-separated list of poll fields"),
-                    "tweet.fields": .string(description: "Comma-separated list of tweet fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields")
                 ],
                 required: ["id"]
             )
@@ -992,10 +644,7 @@ enum XTool: String, CaseIterable, Identifiable {
         case .getList:
             return .object(
                 properties: [
-                    "id": .string(description: "The list ID"),
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "list.fields": .string(description: "Comma-separated list of list fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields")
+                    "id": .string(description: "The list ID")
                 ],
                 required: ["id"]
             )
@@ -1005,10 +654,6 @@ enum XTool: String, CaseIterable, Identifiable {
                 properties: [
                     "id": .string(description: "The list ID"),
                     "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100),
-                    "pagination_token": .string(description: "Pagination token"),
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "tweet.fields": .string(description: "Comma-separated list of tweet fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields")
                 ],
                 required: ["id"]
             )
@@ -1036,13 +681,6 @@ enum XTool: String, CaseIterable, Identifiable {
                 properties: [
                     "id": .string(description: "The list ID"),
                     "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100),
-                    "pagination_token": .string(description: "Pagination token"),
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "media.fields": .string(description: "Comma-separated list of media fields"),
-                    "place.fields": .string(description: "Comma-separated list of place fields"),
-                    "poll.fields": .string(description: "Comma-separated list of poll fields"),
-                    "tweet.fields": .string(description: "Comma-separated list of tweet fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields")
                 ],
                 required: ["id"]
             )
@@ -1052,10 +690,7 @@ enum XTool: String, CaseIterable, Identifiable {
                 properties: [
                     "id": .string(description: "The list ID"),
                     "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100),
-                    "pagination_token": .string(description: "Pagination token"),
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "list.fields": .string(description: "Comma-separated list of list fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields")
+                    "pagination_token": .string(description: "Pagination token")
                 ],
                 required: ["id"]
             )
@@ -1098,14 +733,14 @@ enum XTool: String, CaseIterable, Identifiable {
                         required: ["text"]
                     )
                 ],
-                required: ["conversation_type", "message"]
+                required: ["conversation_type", "message", "participant_ids"]
             )
 
         case .sendDMToConversation:
             return .object(
                 properties: [
                     "dm_conversation_id": .string(description: "DM conversation ID"),
-                    "text": .string(description: "Message text"),
+                    "text": .string(description: "Message text, must not be empty"),
                     "attachments": .array(
                         description: "Media attachments",
                         items: .object(
@@ -1115,14 +750,14 @@ enum XTool: String, CaseIterable, Identifiable {
                         )
                     )
                 ],
-                required: ["dm_conversation_id"]
+                required: ["dm_conversation_id", "text"]
             )
 
         case .sendDMToParticipant:
             return .object(
                 properties: [
                     "participant_id": .string(description: "Recipient user ID"),
-                    "text": .string(description: "Message text"),
+                    "text": .string(description: "Message text, must not be empty."),
                     "attachments": .array(
                         description: "Media attachments", items: .object(
                             properties: [
@@ -1131,20 +766,14 @@ enum XTool: String, CaseIterable, Identifiable {
                         )
                     )
                 ],
-                required: ["participant_id"]
+                required: ["participant_id", "text"]
             )
 
         case .getDMEvents:
             return .object(
                 properties: [
                     "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100),
-                    "pagination_token": .string(description: "Pagination token"),
-                    "event_types": .string(description: "Comma-separated event types"),
-                    "dm_event.fields": .string(description: "Comma-separated DM event fields"),
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "media.fields": .string(description: "Comma-separated list of media fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields"),
-                    "tweet.fields": .string(description: "Comma-separated list of tweet fields")
+                    "event_types": .string(description: "Comma-separated event types")
                 ]
             )
 
@@ -1153,13 +782,7 @@ enum XTool: String, CaseIterable, Identifiable {
                 properties: [
                     "id": .string(description: "Conversation ID"),
                     "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100),
-                    "pagination_token": .string(description: "Pagination token"),
-                    "event_types": .string(description: "Comma-separated event types"),
-                    "dm_event.fields": .string(description: "Comma-separated DM event fields"),
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "media.fields": .string(description: "Comma-separated list of media fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields"),
-                    "tweet.fields": .string(description: "Comma-separated list of tweet fields")
+                    "event_types": .string(description: "Comma-separated event types")
                 ],
                 required: ["id"]
             )
@@ -1175,12 +798,7 @@ enum XTool: String, CaseIterable, Identifiable {
         case .getDMEventDetails:
             return .object(
                 properties: [
-                    "id": .string(description: "DM event ID"),
-                    "dm_event.fields": .string(description: "Comma-separated DM event fields"),
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "media.fields": .string(description: "Comma-separated list of media fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields"),
-                    "tweet.fields": .string(description: "Comma-separated list of tweet fields")
+                    "id": .string(description: "DM event ID")
                 ],
                 required: ["id"]
             )
@@ -1209,94 +827,11 @@ enum XTool: String, CaseIterable, Identifiable {
                 properties: [
                     "id": .string(description: "The user ID"),
                     "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100),
-                    "pagination_token": .string(description: "Pagination token"),
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "media.fields": .string(description: "Comma-separated list of media fields"),
-                    "place.fields": .string(description: "Comma-separated list of place fields"),
-                    "poll.fields": .string(description: "Comma-separated list of poll fields"),
-                    "tweet.fields": .string(description: "Comma-separated list of tweet fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields")
-                ],
-                required: ["id"]
-            )
-
-        // MARK: - Spaces
-        case .getSpace:
-            return .object(
-                properties: [
-                    "id": .string(description: "The space ID"),
-                    "space.fields": .string(description: "Comma-separated space fields"),
-                    "expansions": .string(description: "Comma-separated list of expansions")
-                ],
-                required: ["id"]
-            )
-
-        case .getSpaces:
-            return .object(
-                properties: [
-                    "ids": .array(description: "Space IDs", items: .string()),
-                    "space.fields": .string(description: "Comma-separated space fields"),
-                    "expansions": .string(description: "Comma-separated list of expansions")
-                ],
-                required: ["ids"]
-            )
-
-        case .getSpacesByCreator:
-            return .object(
-                properties: [
-                    "user_ids": .array(description: "Creator user IDs", items: .string()),
-                    "space.fields": .string(description: "Comma-separated space fields"),
-                    "expansions": .string(description: "Comma-separated list of expansions")
-                ],
-                required: ["user_ids"]
-            )
-
-        case .getSpaceTweets:
-            return .object(
-                properties: [
-                    "id": .string(description: "The space ID"),
-                    "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100),
-                    "space.fields": .string(description: "Comma-separated space fields"),
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "tweet.fields": .string(description: "Comma-separated list of tweet fields"),
-                    "user.fields": .string(description: "Comma-separated list of user fields")
-                ],
-                required: ["id"]
-            )
-
-        case .searchSpaces:
-            return .object(
-                properties: [
-                    "query": .string(description: "Search query"),
-                    "state": .string(description: "Space state", enum: ["live", "scheduled", "ended"]),
-                    "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100),
-                    "space.fields": .string(description: "Comma-separated space fields"),
-                    "expansions": .string(description: "Comma-separated list of expansions")
-                ],
-                required: ["query"]
-            )
-
-        case .getSpaceBuyers:
-            return .object(
-                properties: [
-                    "id": .string(description: "The space ID"),
-                    "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100),
-                    "space.fields": .string(description: "Comma-separated space fields"),
-                    "expansions": .string(description: "Comma-separated list of expansions"),
-                    "user.fields": .string(description: "Comma-separated list of user fields")
                 ],
                 required: ["id"]
             )
 
         // MARK: - Trends
-        case .getTrendsByWoeid:
-            return .object(
-                properties: [
-                    "woeid": .string(description: "Where On Earth ID for location")
-                ],
-                required: ["woeid"]
-            )
-
         case .getPersonalizedTrends:
             return .object(properties: [:])
 
@@ -1331,7 +866,6 @@ enum XTool: String, CaseIterable, Identifiable {
             return .object(
                 properties: [
                     "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100),
-                    "pagination_token": .string(description: "Pagination token")
                 ]
             )
 
@@ -1339,36 +873,7 @@ enum XTool: String, CaseIterable, Identifiable {
             return .object(
                 properties: [
                     "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100),
-                    "pagination_token": .string(description: "Pagination token")
                 ]
-            )
-
-        // MARK: - Compliance
-        case .createComplianceJob:
-            return .object(
-                properties: [
-                    "type": .string(description: "Job type", enum: ["tweets", "users"]),
-                    "name": .string(description: "Job name"),
-                    "resumable": .boolean(description: "Whether the job is resumable")
-                ],
-                required: ["type"]
-            )
-
-        case .getComplianceJob:
-            return .object(
-                properties: [
-                    "id": .string(description: "The compliance job ID")
-                ],
-                required: ["id"]
-            )
-
-        case .listComplianceJobs:
-            return .object(
-                properties: [
-                    "type": .string(description: "Job type filter", enum: ["tweets", "users"]),
-                    "status": .string(description: "Job status filter", enum: ["created", "in_progress", "complete", "failed"])
-                ],
-                required: ["type"]
             )
 
         // MARK: - Media
@@ -1440,17 +945,651 @@ enum XTool: String, CaseIterable, Identifiable {
                 ],
                 required: ["media_key"]
             )
+
+        // MARK: - Voice Confirmation
+        case .confirmAction:
+            return .object(
+                properties: [
+                    "tool_call_id": .string(description: "The ID of the original tool call that is being confirmed")
+                ],
+                required: ["tool_call_id"]
+            )
+
+        case .cancelAction:
+            return .object(
+                properties: [
+                    "tool_call_id": .string(description: "The ID of the original tool call that is being cancelled")
+                ],
+                required: ["tool_call_id"]
+            )
         }
     }
 }
 
 // MARK: - XTool Extensions
 extension XTool {
+    var previewBehavior: PreviewBehavior {
+        switch self {
+        // Write operations require confirmation
+
+        // Posts/Tweets
+        case .createTweet, .replyToTweet, .quoteTweet, .createPollTweet, .deleteTweet:
+            return .requiresConfirmation
+
+        // Likes & Retweets
+        case .likeTweet, .unlikeTweet, .retweet, .unretweet:
+            return .requiresConfirmation
+
+        // Follow/Unfollow
+        case .followUser, .unfollowUser:
+            return .requiresConfirmation
+
+        // Mute/Unmute
+        case .muteUser, .unmuteUser:
+            return .requiresConfirmation
+
+        // Block/Unblock
+        case .blockUser, .unblockUser, .blockUserDMs, .unblockUserDMs:
+            return .requiresConfirmation
+
+        // Lists
+        case .createList, .deleteList, .updateList, .addListMember, .removeListMember, .pinList, .unpinList:
+            return .requiresConfirmation
+
+        // Direct Messages
+        case .createDMConversation, .sendDMToConversation, .sendDMToParticipant, .deleteDMEvent:
+            return .requiresConfirmation
+
+        // Bookmarks
+        case .addBookmark, .removeBookmark:
+            return .requiresConfirmation
+
+        // Voice Confirmation tools (must execute immediately without confirmation)
+        case .confirmAction, .cancelAction:
+            return .none
+
+        // Read-only operations are safe (searches, gets, streams, etc.)
+        default:
+            return .none
+        }
+    }
+
+    func generatePreview(from arguments: String, orchestrator: XToolOrchestrator) async -> (title: String, content: String)? {
+        guard previewBehavior == .requiresConfirmation else { return nil }
+
+        // Parse JSON arguments
+        guard let data = arguments.data(using: .utf8),
+              let params = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return (title: "Allow \(name)?", content: "Unable to parse parameters")
+        }
+
+        // Tool-specific formatting
+        switch self {
+        case .createTweet:
+            let text = params["text"] as? String ?? ""
+            return (title: "Post Tweet", content: "\"\(text)\"")
+
+        case .replyToTweet:
+            let text = params["text"] as? String ?? ""
+
+            if let replyObj = params["reply"] as? [String: Any],
+               let replyToId = replyObj["in_reply_to_tweet_id"] as? String {
+                // Fetch the tweet being replied to with author info
+                let result = await orchestrator.executeTool(.getTweet, parameters: [
+                    "id": replyToId,
+                    "tweet.fields": ["text", "author_id"],
+                    "expansions": ["author_id"],
+                    "user.fields": ["username"]
+                ])
+
+                if result.success,
+                   let responseData = result.response?.data(using: .utf8),
+                   let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+                   let tweetData = json["data"] as? [String: Any],
+                   let originalText = tweetData["text"] as? String {
+
+                    // Extract username from expanded includes
+                    var username = "user"
+                    if let includes = json["includes"] as? [String: Any],
+                       let users = includes["users"] as? [[String: Any]],
+                       let user = users.first,
+                       let handle = user["username"] as? String {
+                        username = handle
+                    }
+
+                    let truncatedOriginal = originalText.count > 60 ? "\(originalText.prefix(60))..." : originalText
+                    return (
+                        title: "Reply to @\(username)",
+                        content: "Original: \"\(truncatedOriginal)\"\n\n↩️ Your reply: \"\(text)\""
+                    )
+                }
+            }
+            return (title: "Reply to Tweet", content: "\"\(text)\"")
+
+        case .quoteTweet:
+            let text = params["text"] as? String ?? ""
+            let quoteId = params["quote_tweet_id"] as? String ?? ""
+
+            // Fetch the tweet being quoted with author info
+            let result = await orchestrator.executeTool(.getTweet, parameters: [
+                "id": quoteId,
+                "tweet.fields": ["text", "author_id"],
+                "expansions": ["author_id"],
+                "user.fields": ["username"]
+            ])
+
+            if result.success,
+               let responseData = result.response?.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let tweetData = json["data"] as? [String: Any],
+               let originalText = tweetData["text"] as? String {
+
+                // Extract username from expanded includes
+                var username = "user"
+                if let includes = json["includes"] as? [String: Any],
+                   let users = includes["users"] as? [[String: Any]],
+                   let user = users.first,
+                   let handle = user["username"] as? String {
+                    username = handle
+                }
+
+                let truncatedOriginal = originalText.count > 60 ? "\(originalText.prefix(60))..." : originalText
+                return (
+                    title: "Quote @\(username)",
+                    content: "Quoting: \"\(truncatedOriginal)\"\n\n🔁 Your quote: \"\(text)\""
+                )
+            }
+            return (title: "Quote Tweet", content: "\"\(text)\"")
+
+        case .createPollTweet:
+            let text = params["text"] as? String ?? ""
+            if let pollObj = params["poll"] as? [String: Any],
+               let options = pollObj["options"] as? [String],
+               let duration = pollObj["duration_minutes"] as? Int {
+                let optionsText = options.enumerated().map { "\($0 + 1). \($1)" }.joined(separator: "\n")
+                return (title: "Create Poll", content: "\"\(text)\"\n\n📊 Poll options:\n\(optionsText)\n\n⏱ Duration: \(duration) minutes")
+            }
+            return (title: "Create Poll", content: "\"\(text)\"")
+
+        case .deleteTweet:
+            let id = params["id"] as? String ?? ""
+
+            // Fetch the tweet to be deleted
+            let result = await orchestrator.executeTool(.getTweet, parameters: [
+                "id": id,
+                "tweet.fields": ["text"]
+            ])
+
+            if result.success,
+               let responseData = result.response?.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let tweetData = json["data"] as? [String: Any],
+               let tweetText = tweetData["text"] as? String {
+                return (title: "Delete Tweet", content: "🗑️ \"\(tweetText)\"")
+            }
+            return (title: "Delete Tweet", content: "🗑️ Delete this tweet?")
+
+        case .likeTweet:
+            let id = params["tweet_id"] as? String ?? ""
+
+            // Fetch the tweet to be liked
+            let result = await orchestrator.executeTool(.getTweet, parameters: [
+                "id": id,
+                "tweet.fields": ["text"]
+            ])
+
+            if result.success,
+               let responseData = result.response?.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let tweetData = json["data"] as? [String: Any],
+               let tweetText = tweetData["text"] as? String {
+                let truncated = tweetText.count > 60 ? "\(tweetText.prefix(60))..." : tweetText
+                return (title: "Like Tweet", content: "❤️ \"\(truncated)\"")
+            }
+            return (title: "Like Tweet", content: "❤️ Like this tweet?")
+
+        case .unlikeTweet:
+            let id = params["tweet_id"] as? String ?? ""
+
+            // Fetch the tweet to be unliked
+            let result = await orchestrator.executeTool(.getTweet, parameters: [
+                "id": id,
+                "tweet.fields": ["text"]
+            ])
+
+            if result.success,
+               let responseData = result.response?.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let tweetData = json["data"] as? [String: Any],
+               let tweetText = tweetData["text"] as? String {
+                let truncated = tweetText.count > 60 ? "\(tweetText.prefix(60))..." : tweetText
+                return (title: "Unlike Tweet", content: "💔 \"\(truncated)\"")
+            }
+            return (title: "Unlike Tweet", content: "💔 Unlike this tweet?")
+
+        case .retweet:
+            let id = params["tweet_id"] as? String ?? ""
+
+            // Fetch the tweet to be retweeted
+            let result = await orchestrator.executeTool(.getTweet, parameters: [
+                "id": id,
+                "tweet.fields": ["text"]
+            ])
+
+            if result.success,
+               let responseData = result.response?.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let tweetData = json["data"] as? [String: Any],
+               let tweetText = tweetData["text"] as? String {
+                let truncated = tweetText.count > 60 ? "\(tweetText.prefix(60))..." : tweetText
+                return (title: "Retweet", content: "🔁 \"\(truncated)\"")
+            }
+            return (title: "Retweet", content: "🔁 Retweet this?")
+
+        case .unretweet:
+            let id = params["source_tweet_id"] as? String ?? ""
+
+            // Fetch the tweet to be unretweeted
+            let result = await orchestrator.executeTool(.getTweet, parameters: [
+                "id": id,
+                "tweet.fields": ["text"]
+            ])
+
+            if result.success,
+            let responseData = result.response?.data(using: .utf8),
+            let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+            let tweetData = json["data"] as? [String: Any],
+            let tweetText = tweetData["text"] as? String {
+                let truncated = tweetText.count > 60 ? "\(tweetText.prefix(60))..." : tweetText
+                return (title: "Undo Retweet", content: "↩️ \"\(truncated)\"")
+            }
+            return (title: "Undo Retweet", content: "↩️ Undo retweet?")
+
+        // MARK: - Direct Messages
+        case .sendDMToParticipant:
+            let text = params["text"] as? String ?? ""
+            let participantId = params["participant_id"] as? String ?? ""
+
+            // Fetch the user being messaged
+            let result = await orchestrator.executeTool(.getUserById, parameters: [
+                "id": participantId
+            ])
+
+            if result.success,
+               let responseData = result.response?.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let userData = json["data"] as? [String: Any],
+               let username = userData["username"] as? String {
+                return (title: "Send DM to @\(username)", content: "💬 \"\(text)\"")
+            }
+            return (title: "Send Direct Message", content: "💬 \"\(text)\"")
+
+        case .sendDMToConversation:
+            let text = params["text"] as? String ?? ""
+            let conversationId = params["dm_conversation_id"] as? String ?? ""
+            return (title: "Send DM", content: "💬 \"\(text)\"\n\nConversation ID: \(conversationId)")
+
+        case .createDMConversation:
+            let text: String
+            if let messageObj = params["message"] as? [String: Any],
+               let messageText = messageObj["text"] as? String {
+                text = messageText
+            } else {
+                text = ""
+            }
+
+            let participantIds = params["participant_ids"] as? [String] ?? []
+            let conversationType = params["conversation_type"] as? String ?? "DirectMessage"
+
+            if conversationType == "Group" {
+                return (title: "Create Group DM", content: "💬 \"\(text)\"\n\nWith \(participantIds.count) participants")
+            } else if let participantId = participantIds.first {
+                // Fetch the user being messaged
+                let result = await orchestrator.executeTool(.getUserById, parameters: [
+                    "id": participantId
+                ])
+
+                if result.success,
+                   let responseData = result.response?.data(using: .utf8),
+                   let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+                   let userData = json["data"] as? [String: Any],
+                   let username = userData["username"] as? String {
+                    return (title: "New DM to @\(username)", content: "💬 \"\(text)\"")
+                }
+            }
+            return (title: "Create DM Conversation", content: "💬 \"\(text)\"")
+
+        case .deleteDMEvent:
+            let eventId = params["dm_event_id"] as? String ?? ""
+            return (title: "Delete Message", content: "🗑️ Delete this DM?\n\nEvent ID: \(eventId)")
+
+        // MARK: - User Actions
+        case .followUser:
+            let targetUserId = params["target_user_id"] as? String ?? ""
+
+            // Fetch the user to be followed
+            let result = await orchestrator.executeTool(.getUserById, parameters: [
+                "id": targetUserId
+            ])
+
+            if result.success,
+               let responseData = result.response?.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let userData = json["data"] as? [String: Any],
+               let username = userData["username"] as? String,
+               let name = userData["name"] as? String {
+                return (title: "Follow @\(username)", content: "➕ \(name)")
+            }
+            return (title: "Follow User", content: "➕ Follow this user?")
+
+        case .unfollowUser:
+            let targetUserId = params["target_user_id"] as? String ?? ""
+
+            // Fetch the user to be unfollowed
+            let result = await orchestrator.executeTool(.getUserById, parameters: [
+                "id": targetUserId
+            ])
+
+            if result.success,
+               let responseData = result.response?.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let userData = json["data"] as? [String: Any],
+               let username = userData["username"] as? String,
+               let name = userData["name"] as? String {
+                return (title: "Unfollow @\(username)", content: "➖ \(name)")
+            }
+            return (title: "Unfollow User", content: "➖ Unfollow this user?")
+
+        case .muteUser:
+            let targetUserId = params["target_user_id"] as? String ?? ""
+
+            // Fetch the user to be muted
+            let result = await orchestrator.executeTool(.getUserById, parameters: [
+                "id": targetUserId
+            ])
+
+            if result.success,
+               let responseData = result.response?.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let userData = json["data"] as? [String: Any],
+               let username = userData["username"] as? String,
+               let name = userData["name"] as? String {
+                return (title: "Mute @\(username)", content: "🔇 \(name)")
+            }
+            return (title: "Mute User", content: "🔇 Mute this user?")
+
+        case .unmuteUser:
+            let targetUserId = params["target_user_id"] as? String ?? ""
+
+            // Fetch the user to be unmuted
+            let result = await orchestrator.executeTool(.getUserById, parameters: [
+                "id": targetUserId
+            ])
+
+            if result.success,
+               let responseData = result.response?.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let userData = json["data"] as? [String: Any],
+               let username = userData["username"] as? String,
+               let name = userData["name"] as? String {
+                return (title: "Unmute @\(username)", content: "🔊 \(name)")
+            }
+            return (title: "Unmute User", content: "🔊 Unmute this user?")
+
+        case .blockUser:
+            let targetUserId = params["target_user_id"] as? String ?? ""
+
+            // Fetch the user to be blocked
+            let result = await orchestrator.executeTool(.getUserById, parameters: [
+                "id": targetUserId
+            ])
+
+            if result.success,
+               let responseData = result.response?.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let userData = json["data"] as? [String: Any],
+               let username = userData["username"] as? String,
+               let name = userData["name"] as? String {
+                return (title: "Block @\(username)", content: "🚫 \(name)")
+            }
+            return (title: "Block User", content: "🚫 Block this user?")
+
+        case .unblockUser:
+            let targetUserId = params["target_user_id"] as? String ?? ""
+
+            // Fetch the user to be unblocked
+            let result = await orchestrator.executeTool(.getUserById, parameters: [
+                "id": targetUserId
+            ])
+
+            if result.success,
+               let responseData = result.response?.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let userData = json["data"] as? [String: Any],
+               let username = userData["username"] as? String,
+               let name = userData["name"] as? String {
+                return (title: "Unblock @\(username)", content: "✅ \(name)")
+            }
+            return (title: "Unblock User", content: "✅ Unblock this user?")
+
+        case .blockUserDMs:
+            let targetUserId = params["target_user_id"] as? String ?? ""
+
+            // Fetch the user
+            let result = await orchestrator.executeTool(.getUserById, parameters: [
+                "id": targetUserId
+            ])
+
+            if result.success,
+               let responseData = result.response?.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let userData = json["data"] as? [String: Any],
+               let username = userData["username"] as? String,
+               let name = userData["name"] as? String {
+                return (title: "Block DMs from @\(username)", content: "🚫💬 \(name)")
+            }
+            return (title: "Block DMs", content: "🚫💬 Block DMs from this user?")
+
+        case .unblockUserDMs:
+            let targetUserId = params["target_user_id"] as? String ?? ""
+
+            // Fetch the user
+            let result = await orchestrator.executeTool(.getUserById, parameters: [
+                "id": targetUserId
+            ])
+
+            if result.success,
+               let responseData = result.response?.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let userData = json["data"] as? [String: Any],
+               let username = userData["username"] as? String,
+               let name = userData["name"] as? String {
+                return (title: "Unblock DMs from @\(username)", content: "✅💬 \(name)")
+            }
+            return (title: "Unblock DMs", content: "✅💬 Unblock DMs from this user?")
+
+        // MARK: - Lists
+        case .createList:
+            let name = params["name"] as? String ?? ""
+            let description = params["description"] as? String ?? ""
+            let isPrivate = params["private"] as? Bool ?? false
+            let privacy = isPrivate ? "🔒 Private" : "🌐 Public"
+            return (title: "Create List", content: "📋 \(name)\n\(privacy)\n\n\(description)")
+
+        case .deleteList:
+            let listId = params["id"] as? String ?? ""
+
+            // Fetch the list
+            let result = await orchestrator.executeTool(.getList, parameters: [
+                "id": listId
+            ])
+
+            if result.success,
+               let responseData = result.response?.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let listData = json["data"] as? [String: Any],
+               let listName = listData["name"] as? String {
+                return (title: "Delete List", content: "🗑️ \(listName)")
+            }
+            return (title: "Delete List", content: "🗑️ Delete this list?")
+
+        case .updateList:
+            let name = params["name"] as? String
+            let description = params["description"] as? String
+            let isPrivate = params["private"] as? Bool
+
+            var updates: [String] = []
+            if let name = name { updates.append("Name: \(name)") }
+            if let description = description { updates.append("Description: \(description)") }
+            if let isPrivate = isPrivate {
+                updates.append("Privacy: \(isPrivate ? "🔒 Private" : "🌐 Public")")
+            }
+
+            return (title: "Update List", content: "📋 \(updates.joined(separator: "\n"))")
+
+        case .addListMember:
+            let listId = params["id"] as? String ?? ""
+            let userId = params["user_id"] as? String ?? ""
+
+            // Fetch both list and user
+            async let listResult = orchestrator.executeTool(.getList, parameters: ["id": listId])
+            async let userResult = orchestrator.executeTool(.getUserById, parameters: ["id": userId])
+
+            let (list, user) = await (listResult, userResult)
+
+            var listName = "list"
+            if list.success,
+               let responseData = list.response?.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let listData = json["data"] as? [String: Any],
+               let name = listData["name"] as? String {
+                listName = name
+            }
+
+            var username = "user"
+            if user.success,
+               let responseData = user.response?.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let userData = json["data"] as? [String: Any],
+               let handle = userData["username"] as? String {
+                username = "@\(handle)"
+            }
+
+            return (title: "Add to List", content: "📋 \(listName)\n➕ \(username)")
+
+        case .removeListMember:
+            let listId = params["id"] as? String ?? ""
+            let userId = params["user_id"] as? String ?? ""
+
+            // Fetch both list and user
+            async let listResult = orchestrator.executeTool(.getList, parameters: ["id": listId])
+            async let userResult = orchestrator.executeTool(.getUserById, parameters: ["id": userId])
+
+            let (list, user) = await (listResult, userResult)
+
+            var listName = "list"
+            if list.success,
+               let responseData = list.response?.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let listData = json["data"] as? [String: Any],
+               let name = listData["name"] as? String {
+                listName = name
+            }
+
+            var username = "user"
+            if user.success,
+               let responseData = user.response?.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let userData = json["data"] as? [String: Any],
+               let handle = userData["username"] as? String {
+                username = "@\(handle)"
+            }
+
+            return (title: "Remove from List", content: "📋 \(listName)\n➖ \(username)")
+
+        case .pinList:
+            let listId = params["list_id"] as? String ?? ""
+
+            // Fetch the list
+            let result = await orchestrator.executeTool(.getList, parameters: [
+                "id": listId
+            ])
+
+            if result.success,
+               let responseData = result.response?.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let listData = json["data"] as? [String: Any],
+               let listName = listData["name"] as? String {
+                return (title: "Pin List", content: "📌 \(listName)")
+            }
+            return (title: "Pin List", content: "📌 Pin this list?")
+
+        case .unpinList:
+            let listId = params["list_id"] as? String ?? ""
+
+            // Fetch the list
+            let result = await orchestrator.executeTool(.getList, parameters: [
+                "id": listId
+            ])
+
+            if result.success,
+               let responseData = result.response?.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let listData = json["data"] as? [String: Any],
+               let listName = listData["name"] as? String {
+                return (title: "Unpin List", content: "📍 \(listName)")
+            }
+            return (title: "Unpin List", content: "📍 Unpin this list?")
+
+        // MARK: - Bookmarks
+        case .addBookmark:
+            let tweetId = params["tweet_id"] as? String ?? ""
+
+            // Fetch the tweet to be bookmarked
+            let result = await orchestrator.executeTool(.getTweet, parameters: [
+                "id": tweetId,
+                "tweet.fields": ["text"]
+            ])
+
+            if result.success,
+               let responseData = result.response?.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let tweetData = json["data"] as? [String: Any],
+               let tweetText = tweetData["text"] as? String {
+                let truncated = tweetText.count > 60 ? "\(tweetText.prefix(60))..." : tweetText
+                return (title: "Bookmark Tweet", content: "🔖 \"\(truncated)\"")
+            }
+            return (title: "Bookmark Tweet", content: "🔖 Save this tweet?")
+
+        case .removeBookmark:
+            let tweetId = params["tweet_id"] as? String ?? ""
+
+            // Fetch the tweet to be unbookmarked
+            let result = await orchestrator.executeTool(.getTweet, parameters: [
+                "id": tweetId,
+                "tweet.fields": ["text"]
+            ])
+
+            if result.success,
+               let responseData = result.response?.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+               let tweetData = json["data"] as? [String: Any],
+               let tweetText = tweetData["text"] as? String {
+                let truncated = tweetText.count > 60 ? "\(tweetText.prefix(60))..." : tweetText
+                return (title: "Remove Bookmark", content: "🔖❌ \"\(truncated)\"")
+            }
+            return (title: "Remove Bookmark", content: "🔖❌ Remove bookmark?")
+
+        default:
+            return (title: "Allow \(name)?", content: arguments)
+        }
+    }
+
     static func getToolByName(_ name: String) -> XTool? {
         return XTool.allCases.first { $0.name == name }
     }
 
     static var supportedTools: [Self] {
-        [.createTweet, .deleteTweet, .getTweet, .getTweets, .searchRecentTweets, .searchAllTweets, .getUserById, .getUserByUsername]
+        [.createTweet, .replyToTweet, .quoteTweet, .createPollTweet, .deleteTweet, .getTweet, .getTweets, .getUserTweets, .getUserMentions, .getHomeTimeline, .searchRecentTweets, .getUserById, .getUserByUsername, .sendDMToParticipant, .sendDMToConversation]
     }
 }

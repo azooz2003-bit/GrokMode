@@ -11,7 +11,9 @@ import JSONSchema
 struct XToolIntegration {
     
     static var tools: [XTool] {
-        XTool.supportedTools
+        var all = XTool.allCases
+        all.removeAll(where: { $0 == .searchAllTweets})
+        return all
     }
 
     static func getToolDefinitions() -> [ConversationEvent.ToolDefinition] {

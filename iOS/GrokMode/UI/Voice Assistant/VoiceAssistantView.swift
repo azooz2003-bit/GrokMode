@@ -51,7 +51,7 @@ struct VoiceAssistantView: View {
                                 await viewModel.logoutX()
                             }
                         } label: {
-                            Label("Logout", image: "")
+                            Label("Logout", systemImage: "rectangle.portrait.and.arrow.right")
                         }
                     } label: {
                         Label("", systemImage: "ellipsis")
@@ -61,19 +61,12 @@ struct VoiceAssistantView: View {
                 ToolbarItem(placement:.bottomBar) {
                     if !viewModel.isSessionActivated {
                         waveformButton(barCount: 5) {
-                            // Reconnect if needed, then start listening
                             withAnimation {
-                                if !viewModel.voiceSessionState.isConnected {
-                                    viewModel.reconnect()
-                                } else {
-                                    viewModel.startListening() // TODO: handle error
-                                }
+                                viewModel.startSession()
                             }
                         }
                     } else {
                         waveformButton(barCount: 37)
-                            .disabled(!viewModel.voiceSessionState.isConnected)
-                            .opacity(viewModel.voiceSessionState.isConnected ? 1.0 : 0.5)
                     }
 
                 }
@@ -84,6 +77,13 @@ struct VoiceAssistantView: View {
                     DefaultToolbarItem(kind: .search, placement: .bottomBar)
                     ToolbarSpacer(.fixed, placement: .bottomBar)
 
+                    ToolbarItem(placement: .bottomBar) {
+                        Text(viewModel.formattedSessionDuration)
+                            .font(.caption)
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    }
+
                     ToolbarItem(placement:.bottomBar) {
                         stopButton
                     }
@@ -91,14 +91,6 @@ struct VoiceAssistantView: View {
             }
             .onAppear {
                 viewModel.checkPermissions()
-
-                // Auto-connect if enabled and permissions granted
-                if shouldAutoconnect && viewModel.micPermission.isGranted && !viewModel.voiceSessionState.isConnected && !viewModel.voiceSessionState.isConnecting {
-                    // Small delay to ensure UI is ready
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                        viewModel.connect()
-                    }
-                }
             }
             .onChange(of: viewModel.currentAudioLevel) { oldValue, newValue in
                 // Update waveform based on real audio level
@@ -111,7 +103,7 @@ struct VoiceAssistantView: View {
             }
         }
         .sheet(item: Binding(
-            get: { viewModel.pendingToolCall },
+            get: { viewModel.currentPendingToolCall },
             set: { if $0 == nil { viewModel.rejectToolCall() } }
         )) { toolCall in
             ToolConfirmationSheet(
@@ -161,7 +153,7 @@ struct VoiceAssistantView: View {
     private var stopButton: some View {
         Button("Stop", systemImage: "stop.fill") {
             withAnimation {
-                viewModel.stopListening()
+                viewModel.stopSession()
             }
         }
         .foregroundStyle(.white)
