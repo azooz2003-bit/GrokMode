@@ -4,6 +4,8 @@
 <dict>
 	<key>BASE_XAI_PROXY_URL</key>
 	<string>$(BASE_XAI_PROXY_URL)</string>
+	<key>BASE_OPENAI_PROXY_URL</key>
+	<string>$(BASE_OPENAI_PROXY_URL)</string>
 	<key>BASE_X_PROXY_URL</key>
 	<string>$(BASE_X_PROXY_URL)</string>
 	<key>CFBundleURLTypes</key>

@@ -1,5 +1,6 @@
 export interface Env {
     X_AI_API_KEY: string;
+    OPENAI_API_KEY: string;
     APP_SECRET: string;
     X_OAUTH2_CLIENT_SECRET: string;
     X_OAUTH2_CLIENT_ID: string;
