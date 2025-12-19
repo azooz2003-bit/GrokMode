@@ -36,7 +36,11 @@ struct SettingsView: View {
                 Section {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack(alignment: .firstTextBaseline, spacing: 2) {
-                            Text("4/5 min")
+                            if storeManager.currentTier == .pro {
+                                Text("4 min")
+                            } else {
+                                Text("4/5 min")
+                            }
                             Spacer()
                                 .font(.system(size: 17, weight: .semibold, design: .rounded))
                             Text("used this month")
@@ -44,48 +48,50 @@ struct SettingsView: View {
                                 .foregroundStyle(.secondary)
                         }
 
-                        GeometryReader { geometry in
-                            ZStack(alignment: .leading) {
-                                RoundedRectangle(cornerRadius: 3)
-                                    .fill(Color.primary.opacity(0.15))
-                                    .frame(height: 6)
+                        if storeManager.currentTier != .pro {
+                            GeometryReader { geometry in
+                                ZStack(alignment: .leading) {
+                                    RoundedRectangle(cornerRadius: 3)
+                                        .fill(Color.primary.opacity(0.15))
+                                        .frame(height: 6)
 
-                                RoundedRectangle(cornerRadius: 3)
-                                    .fill(Color.blue.gradient)
-                                    .frame(width: geometry.size.width * 0.8, height: 6)
+                                    RoundedRectangle(cornerRadius: 3)
+                                        .fill(Color.blue.gradient)
+                                        .frame(width: geometry.size.width * 0.8, height: 6)
+                                }
                             }
+                            .frame(height: 6)
                         }
-                        .frame(height: 6)
                     }
                     .padding(.vertical, 4)
 
-                    // Upgrade to Plus
-                    SubscriptionRow(
-                        tier: .plus,
-                        storeManager: storeManager,
-                        isPurchasing: $isPurchasing,
-                        showError: $showError,
-                        errorMessage: $errorMessage
-                    )
+                    // Upgrade to Plus (hide if on Pro)
+                    if storeManager.currentTier != .pro {
+                        SubscriptionRow(
+                            tier: .plus,
+                            storeManager: storeManager,
+                            isPurchasing: $isPurchasing,
+                            showError: $showError,
+                            errorMessage: $errorMessage
+                        )
+                    }
 
-                    // Upgrade to Pro
-                    SubscriptionRow(
-                        tier: .pro,
-                        storeManager: storeManager,
-                        isPurchasing: $isPurchasing,
-                        showError: $showError,
-                        errorMessage: $errorMessage
-                    )
+                    // Upgrade to Pro (hide if already on Pro)
+                    if storeManager.currentTier != .pro {
+                        SubscriptionRow(
+                            tier: .pro,
+                            storeManager: storeManager,
+                            isPurchasing: $isPurchasing,
+                            showError: $showError,
+                            errorMessage: $errorMessage
+                        )
+                    }
                 } header: {
-                    Text("Usage")
-                }
-
-                // Voice Section
-                Section {
-                    SettingsRow(icon: "waveform", title: "Voice Settings", iconColor: .purple)
-                    SettingsRow(icon: "speaker.wave.3.fill", title: "Audio Output", iconColor: .green)
-                } header: {
-                    Text("Voice")
+                    HStack {
+                        Text("Usage")
+                        Spacer()
+                        SubscriptionBadge(tier: storeManager.currentTier)
+                    }
                 }
 
                 // About Section
@@ -240,6 +246,39 @@ private struct SubscriptionRow: View {
             .padding(.vertical, 4)
         }
         .disabled(isSubscribed)
+    }
+}
+
+// MARK: - Subscription Badge
+
+private struct SubscriptionBadge: View {
+    let tier: SubscriptionTier?
+
+    private var label: String {
+        switch tier {
+        case .plus: return "Plus"
+        case .pro: return "Pro"
+        case .none: return "Free"
+        }
+    }
+
+    private var color: Color {
+        switch tier {
+        case .plus: return .blue
+        case .pro: return .green
+        case .none: return .gray
+        }
+    }
+
+    var body: some View {
+        Text(label)
+            .font(.caption2)
+            .fontWeight(.semibold)
+            .foregroundStyle(color)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(color.opacity(0.15))
+            .clipShape(Capsule())
     }
 }
 
