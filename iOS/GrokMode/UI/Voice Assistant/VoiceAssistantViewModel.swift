@@ -107,7 +107,9 @@ class VoiceAssistantViewModel: NSObject {
                 self?.stopSession()
 
                 self?.voiceSessionState = .error(error.localizedDescription)
+                #if DEBUG
                 self?.addSystemMessage("Error: \(error.localizedDescription)")
+                #endif
             }
         }
 
@@ -501,6 +503,22 @@ class VoiceAssistantViewModel: NSObject {
     func logoutX() async {
         await authViewModel.logout()
     }
+
+    #if DEBUG
+    func testRefreshToken() async {
+        AppLogger.auth.info("🧪 Testing refresh token - forcing refresh by deleting access token...")
+
+        // Now call getValidAccessToken which will trigger refresh
+        guard let token = try? await authViewModel.authService.refreshAccessToken() else {
+            AppLogger.auth.error("❌ Refresh failed - refresh token likely expired")
+            addSystemMessage("❌ Refresh token test failed - you may need to re-login")
+            return
+        }
+
+        AppLogger.auth.info("✅ Successfully refreshed access token")
+        addSystemMessage("✅ Refresh token test passed - new token: \(token.prefix(20))...")
+    }
+    #endif
 }
 
 // MARK: AudioStreamerDelegate

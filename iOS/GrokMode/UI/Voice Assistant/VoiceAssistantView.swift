@@ -66,6 +66,18 @@ struct VoiceAssistantView: View {
                                 Label("Logout", systemImage: "rectangle.portrait.and.arrow.right")
                             }
                         }
+
+                        #if DEBUG
+                        Section("Debug") {
+                            Button {
+                                Task {
+                                    await viewModel.testRefreshToken()
+                                }
+                            } label: {
+                                Label("Test Refresh Token", systemImage: "arrow.clockwise")
+                            }
+                        }
+                        #endif
                     } label: {
                         Label("", systemImage: "ellipsis")
                     }
