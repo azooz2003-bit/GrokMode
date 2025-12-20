@@ -186,27 +186,17 @@ struct GrokPrimaryContentBlock: View {
         LazyVGrid(columns: gridItems, spacing: 8) {
             ForEach(Array(urls.prefix(4).enumerated()), id: \.offset) { index, urlString in
                 if let url = URL(string: urlString) {
-                    AsyncImage(url: url) { phase in
-                        switch phase {
-                        case .empty:
-                            ProgressView()
-                                .frame(height: 150)
-                        case .success(let image):
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .frame(height: 150)
-                                .clipped()
-                        case .failure:
-                            Image(systemName: "photo")
-                                .font(.largeTitle)
-                                .foregroundColor(.gray)
-                                .frame(height: 150)
-                        @unknown default:
-                            EmptyView()
-                        }
+                    AsyncImage(url: url) { image in
+                        image
+                            .resizable()
+                    } placeholder: {
+                        Image(systemName: "photo")
+                            .font(.largeTitle)
+                            .foregroundColor(.gray)
+                            .frame(height: 150)
                     }
-                    .frame(height: 150)
+                    .aspectRatio(contentMode: .fill)
+                    .clipped()
                     .background(Color.gray.opacity(0.2))
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                 }

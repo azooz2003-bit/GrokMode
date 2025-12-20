@@ -88,7 +88,7 @@ struct VoiceAssistantView: View {
                         }
                         #endif
                     } label: {
-                        Image(systemName: "gear")
+                        Image(systemName: "ellipsis")
                     }
                 }
 

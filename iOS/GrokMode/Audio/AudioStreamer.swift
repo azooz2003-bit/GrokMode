@@ -60,7 +60,8 @@ class AudioStreamer: NSObject {
 
     // MARK: Setup Audio Session
 
-    static public func make(xaiSampleRate: Double = 24000) throws -> AudioStreamer {
+    @concurrent
+    static public func make(xaiSampleRate: Double = 24000) async throws -> AudioStreamer {
         let xaiFormat: AVAudioFormat = {
             guard let format = AVAudioFormat(commonFormat: .pcmFormatInt16,
                                              sampleRate: xaiSampleRate,
@@ -106,7 +107,7 @@ class AudioStreamer: NSObject {
         audioEngine.connect(playerNode, to: mixerNode, format: hardwareFormat)
         AppLogger.audio.info("✅ Audio nodes connected with format: \(hardwareFormat.sampleRate)Hz")
 
-        return AudioStreamer(
+        return await AudioStreamer(
             audioEngine: audioEngine,
             inputNode: inputNode,
             playerNode: playerNode,
@@ -190,10 +191,10 @@ class AudioStreamer: NSObject {
     }
 
     func stopStreaming() {
-        // Stop Speech VAD
-        speechVAD.stopDetection()
-
         audioQueue.async {
+            // Stop Speech VAD
+            self.speechVAD.stopDetection()
+
             guard self.isStreaming else { return }
 
             // Don't fully stop the engine if we want to keep playing clean tails, but typically we stop.
@@ -211,26 +212,30 @@ class AudioStreamer: NSObject {
     
     // Playback Function
     func stopPlayback() {
-        if playerNode.isPlaying {
-            playerNode.stop()
-            playerNode.reset() // Clear all scheduled buffers
+        audioQueue.async {
+            if self.playerNode.isPlaying {
+                self.playerNode.stop()
+                self.playerNode.reset() // Clear all scheduled buffers
+            }
+            AppLogger.audio.info("🛑 Playback interrupted by user")
         }
-        AppLogger.audio.info("🛑 Playback interrupted by user")
     }
 
     func playAudio(_ data: Data) throws {
         // Convert the incoming Data (PCM16) to a playable buffer
         let buffer = try convertDataToBuffer(data)
 
-        if !audioEngine.isRunning {
-            try? audioEngine.start()
+        audioQueue.async {
+            if !self.audioEngine.isRunning {
+                try? self.audioEngine.start()
+            }
+
+            if !self.playerNode.isPlaying {
+                self.playerNode.play()
+            }
+
+            self.playerNode.scheduleBuffer(buffer, at: nil, options: [], completionHandler: nil)
         }
-        
-        if !playerNode.isPlaying {
-            playerNode.play()
-        }
-        
-        playerNode.scheduleBuffer(buffer, at: nil, options: [], completionHandler: nil)
     }
     
     private func convertDataToBuffer(_ data: Data) throws -> AVAudioPCMBuffer {
