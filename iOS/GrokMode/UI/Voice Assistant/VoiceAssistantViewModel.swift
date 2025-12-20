@@ -17,12 +17,14 @@ class VoiceAssistantViewModel: NSObject {
     var voiceSessionState: VoiceSessionState = .disconnected
     var isSessionActivated: Bool = false
     var currentAudioLevel: Float = 0.0
-    var selectedServiceType: VoiceServiceType = .xai
+    var selectedServiceType: VoiceServiceType = .openai
 
-    // MARK: Session Duration
+    // MARK: Session
     var sessionElapsedTime: TimeInterval = 0
     private var sessionStartTime: Date?
     private var sessionTimer: Timer?
+    /// For serializing sessions start and stops
+    private var sessionStartStopTask: Task<Void, Never>?
 
     var formattedSessionDuration: String {
         let minutes = Int(sessionElapsedTime) / 60
@@ -76,7 +78,7 @@ class VoiceAssistantViewModel: NSObject {
 
     // MARK: - Connection Management
 
-    func connect() {
+    func connect() async {
         voiceSessionState = .connecting
 
         let serviceName = selectedServiceType.displayName
@@ -93,7 +95,7 @@ class VoiceAssistantViewModel: NSObject {
         self.voiceService = voiceService
 
         // Initialize audio streamer with service-specific sample rate
-        audioStreamer = try? AudioStreamer.make(xaiSampleRate: Double(voiceService.requiredSampleRate))
+        audioStreamer = try? await AudioStreamer.make(xaiSampleRate: Double(voiceService.requiredSampleRate))
         audioStreamer?.delegate = self
 
         // Set up callbacks (already on main actor)
@@ -145,66 +147,63 @@ class VoiceAssistantViewModel: NSObject {
         }
 
         // Start connection
-        Task {
-            do {
-                // Execute user profile fetch and XAI connection in parallel
-                #if DEBUG
-                AppLogger.network.debug("===== USER PROFILE REQUEST =====")
-                #endif
+        do {
+            // Execute user profile fetch and XAI connection in parallel
+            #if DEBUG
+            AppLogger.network.debug("===== USER PROFILE REQUEST =====")
+            #endif
 
-                let xToolOrchestrator = XToolOrchestrator(authService: self.authViewModel.authService)
+            let xToolOrchestrator = XToolOrchestrator(authService: self.authViewModel.authService)
 
-                // Connect to voice service in parallel with user profile fetch
-                async let connect: () = voiceService.connect()
-                async let userProfileResult = xToolOrchestrator.executeTool(.getAuthenticatedUser, parameters: [:])
+            // Connect to voice service in parallel with user profile fetch
+            async let connect: () = voiceService.connect()
+            async let userProfileResult = xToolOrchestrator.executeTool(.getAuthenticatedUser, parameters: [:])
 
-                // Await both operations
-                let (_, _) = (await userProfileResult, try await connect)
+            // Await both operations
+            let (_, _) = (await userProfileResult, try await connect)
 
-                // Configure session with tools (must be after connection)
-                let tools = XToolIntegration.getToolDefinitions()
+            // Configure session with tools (must be after connection)
+            let tools = XToolIntegration.getToolDefinitions()
 
-                // Get service-specific instructions
-                let instructions: String
-                if let xaiService = voiceService as? XAIVoiceService {
-                    instructions = xaiService.instructions
-                } else if let openAIService = voiceService as? OpenAIVoiceService {
-                    instructions = openAIService.instructions
-                } else {
-                    instructions = "You are a helpful voice assistant."
-                }
+            // Get service-specific instructions
+            let instructions: String
+            if let xaiService = voiceService as? XAIVoiceService {
+                instructions = xaiService.instructions
+            } else if let openAIService = voiceService as? OpenAIVoiceService {
+                instructions = openAIService.instructions
+            } else {
+                instructions = "You are a helpful voice assistant."
+            }
 
-                let sessionConfig = VoiceSessionConfig(
-                    instructions: instructions,
-                    tools: tools,
-                    sampleRate: voiceService.requiredSampleRate
-                )
-                try voiceService.configureSession(config: sessionConfig, tools: tools)
+            let sessionConfig = VoiceSessionConfig(
+                instructions: instructions,
+                tools: tools,
+                sampleRate: voiceService.requiredSampleRate
+            )
+            try voiceService.configureSession(config: sessionConfig, tools: tools)
 
-                // TODO: Send context message in service-specific way if needed
-                // For now, context can be integrated into instructions or sent via tool
+            // TODO: Send context message in service-specific way if needed
+            // For now, context can be integrated into instructions or sent via tool
 
-                addSystemMessage("Session configured and ready")
+            addSystemMessage("Session configured and ready")
 
-                // Start audio streaming now that session is configured
-                audioStreamer?.startStreamingAsync { [weak self] error in
-                    if let error = error {
-                        Task { @MainActor in
-                            AppLogger.audio.error("Failed to start audio streaming: \(error.localizedDescription)")
-                            self?.voiceSessionState = .error("Microphone access failed")
-                        }
+            // Start audio streaming now that session is configured
+            audioStreamer?.startStreamingAsync { [weak self] error in
+                if let error = error {
+                    Task { @MainActor in
+                        AppLogger.audio.error("Failed to start audio streaming: \(error.localizedDescription)")
+                        self?.voiceSessionState = .error("Microphone access failed")
                     }
                 }
-
-            } catch {
-                self.voiceSessionState = .error(error.localizedDescription)
-                self.addSystemMessage("Connection failed: \(error.localizedDescription)")
             }
+
+        } catch {
+            self.voiceSessionState = .error(error.localizedDescription)
+            self.addSystemMessage("Connection failed: \(error.localizedDescription)")
         }
     }
 
     func disconnect() {
-        isSessionActivated = false
         voiceSessionState = .disconnected
         voiceService?.disconnect()
         audioStreamer?.stopStreaming()
@@ -215,37 +214,49 @@ class VoiceAssistantViewModel: NSObject {
     // MARK: - Audio Streaming
 
     func startSession() {
-        // Already connected, start listening
         isSessionActivated = true
-        connect()
+        sessionStartStopTask?.cancel()
+        sessionStartStopTask = Task { @MainActor in
+            // Already connected, start listening
+            await connect()
 
-        // Start session duration timer
-        sessionStartTime = Date()
-        sessionElapsedTime = 0
-        sessionTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            guard let self = self, let startTime = self.sessionStartTime else { return }
-            self.sessionElapsedTime = Date().timeIntervalSince(startTime)
-        }
+            guard !Task.isCancelled else { return }
 
-        // Start audio asynchronously on dedicated audio queue to avoid blocking main thread
-        audioStreamer?.startStreamingAsync { [weak self] error in
-            if let error = error {
-                DispatchQueue.main.async {
-                    AppLogger.audio.error("Failed to start audio streaming: \(error.localizedDescription)")
-                    self?.voiceSessionState = .error("Microphone access failed")
+            // Start session duration timer
+            sessionStartTime = Date()
+            sessionElapsedTime = 0
+            sessionTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+                guard let self = self, let startTime = self.sessionStartTime else { return }
+                self.sessionElapsedTime = Date().timeIntervalSince(startTime)
+            }
+
+            guard !Task.isCancelled else { return }
+
+            // Start audio asynchronously on dedicated audio queue to avoid blocking main thread
+            audioStreamer?.startStreamingAsync { [weak self] error in
+                if let error = error {
+                    DispatchQueue.main.async {
+                        AppLogger.audio.error("Failed to start audio streaming: \(error.localizedDescription)")
+                        self?.voiceSessionState = .error("Microphone access failed")
+                    }
                 }
             }
         }
     }
 
     func stopSession() {
-        // Stop session duration timer
-        sessionTimer?.invalidate()
-        sessionTimer = nil
-        sessionStartTime = nil
+        isSessionActivated = false
+        sessionStartStopTask?.cancel()
+        sessionStartStopTask = Task { @MainActor in
+            // Stop session duration timer
+            sessionTimer?.invalidate()
+            sessionTimer = nil
+            sessionStartTime = nil
+            sessionElapsedTime = 0
 
-        self.disconnect()
-        currentAudioLevel = 0.0  // Reset waveform to baseline
+            self.disconnect()
+            currentAudioLevel = 0.0  // Reset waveform to baseline
+        }
     }
 
     // MARK: - Event Handling
@@ -511,7 +522,7 @@ class VoiceAssistantViewModel: NSObject {
 
         let tweetTools: Set<XTool> = [
             .searchRecentTweets, .searchAllTweets, .getTweets, .getTweet,
-            .getUserLikedTweets, .getUserTweets, .getUserMentions, .getHomeTimeline
+            .getUserLikedTweets, .getUserTweets, .getUserMentions, .getHomeTimeline, .getRepostsOfMe
         ]
 
         guard let data = response.data(using: .utf8),
