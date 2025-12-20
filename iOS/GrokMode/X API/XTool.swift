@@ -347,9 +347,11 @@ enum XTool: String, CaseIterable, Identifiable {
         case .getHomeTimeline:
             return .object(
                 properties: [
+                    "id": .string(description: "The ID of the authenticated source User to list Reverse Chronological Timeline Posts of. Unique identifier of this User. The value must be the same as the authenticated user."),
                     "max_results": .integer(description: "Maximum number of tweets to return. Must be between 1 and 100. Defaults to 10."),
                     "exclude": .array(description: "Tweet types to exclude (e.g., 'retweets', 'replies')", items: .string(enum: ["retweets", "replies"]))
-                ]
+                ],
+                required: ["id"]
             )
 
         case .searchRecentTweets:
@@ -715,8 +717,8 @@ enum XTool: String, CaseIterable, Identifiable {
         case .createDMConversation:
             return .object(
                 properties: [
-                    "conversation_type": .string(description: "Conversation type", enum: ["Group", "DirectMessage"]),
-                    "participant_ids": .array(description: "Participant user IDs", items: .string()),
+                    "conversation_type": .string(description: "Conversation type", enum: ["Group"]),
+                    "participant_ids": .array(description: "A list of user IDs associated with profiles you want to send the message to.", items: .string()),
                     "message": .object(
                         properties: [
                             "text": .string(description: "Message text"),
