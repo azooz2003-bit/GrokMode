@@ -384,38 +384,24 @@ actor XToolOrchestrator {
             method = .get
             queryItems = buildQueryItems(from: enrichWithUserFields(parameters), excluding: ["id"])
 
-        case .blockUser:
-            guard let id = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
-            path = "/2/users/\(id)/blocking"
-            method = .post
-            bodyParams = filterParams(parameters, excluding: ["id"])
-
-        case .unblockUser:
-            guard let id = parameters["id"], let targetUserId = parameters["target_user_id"] else {
-                throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameters")
-            }
-            path = "/2/users/\(id)/blocking/\(targetUserId)"
-            method = .delete
-
         case .blockUserDMs:
-            guard let id = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
-            path = "/2/users/\(id)/dm_blocklist"
+            guard let targetUserId = parameters["target_user_id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
+            path = "/2/users/\(targetUserId)/dm/block"
             method = .post
-            bodyParams = filterParams(parameters, excluding: ["id"])
 
         case .unblockUserDMs:
-            guard let id = parameters["id"], let targetUserId = parameters["target_user_id"] else {
+            guard let targetUserId = parameters["target_user_id"] else {
                 throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameters")
             }
-            path = "/2/users/\(id)/dm_blocklist/\(targetUserId)"
-            method = .delete
+            path = "/2/users/\(targetUserId)/dm/unblock"
+            method = .post
 
         // MARK: - Likes
         case .getLikingUsers:
             guard let id = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }
             path = "/2/tweets/\(id)/liking_users"
             method = .get
-            queryItems = buildQueryItems(from: enrichWithTweetFields(parameters), excluding: ["id"])
+            queryItems = buildQueryItems(from: enrichWithUserFields(parameters), excluding: ["id"])
 
         case .likeTweet:
             guard let id = parameters["id"] else { throw XToolCallError(code: "MISSING_PARAM", message: "Missing required parameter: id") }

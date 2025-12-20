@@ -46,8 +46,6 @@ enum XTool: String, CaseIterable, Identifiable {
     case muteUser = "mute_user"
     case unmuteUser = "unmute_user"
     case getBlockedUsers = "get_blocked_users"
-    case blockUser = "block_user"
-    case unblockUser = "unblock_user"
     case blockUserDMs = "block_user_dms"
     case unblockUserDMs = "unblock_user_dms"
 
@@ -148,8 +146,6 @@ enum XTool: String, CaseIterable, Identifiable {
         case .muteUser: return "Mute a user"
         case .unmuteUser: return "Unmute a user"
         case .getBlockedUsers: return "Get list of blocked users"
-        case .blockUser: return "Block a user"
-        case .unblockUser: return "Unblock a user"
         case .blockUserDMs: return "Block DMs from a user"
         case .unblockUserDMs: return "Unblock DMs from a user"
 
@@ -163,7 +159,7 @@ enum XTool: String, CaseIterable, Identifiable {
         case .getRetweetedBy: return "Get users who retweeted a tweet"
         case .retweet: return "Retweet a tweet"
         case .unretweet: return "Remove a retweet"
-        case .getRetweets: return "Get retweets of a specific tweet"
+        case .getRetweets: return "Get retweet posts of a specific tweet"
 
         // Lists
         case .createList: return "Create a new list"
@@ -500,40 +496,20 @@ enum XTool: String, CaseIterable, Identifiable {
                 required: ["id"]
             )
 
-        case .blockUser:
-            return .object(
-                properties: [
-                    "id": .string(description: "The authenticated user's ID"),
-                    "target_user_id": .string(description: "The user ID to block")
-                ],
-                required: ["id", "target_user_id"]
-            )
-
-        case .unblockUser:
-            return .object(
-                properties: [
-                    "id": .string(description: "The authenticated user's ID"),
-                    "target_user_id": .string(description: "The user ID to unblock")
-                ],
-                required: ["id", "target_user_id"]
-            )
-
         case .blockUserDMs:
             return .object(
                 properties: [
-                    "id": .string(description: "The authenticated user's ID"),
-                    "target_user_id": .string(description: "The user ID to block DMs from")
+                    "target_user_id": .string(description: "The user ID to block DMs from. Can't be the authenticated user.")
                 ],
-                required: ["id", "target_user_id"]
+                required: ["target_user_id"]
             )
 
         case .unblockUserDMs:
             return .object(
                 properties: [
-                    "id": .string(description: "The authenticated user's ID"),
-                    "target_user_id": .string(description: "The user ID to unblock DMs from")
+                    "target_user_id": .string(description: "The user ID to unblock DMs from. Can't be the authenticated user.")
                 ],
-                required: ["id", "target_user_id"]
+                required: ["target_user_id"]
             )
 
         // MARK: - Likes
@@ -597,7 +573,7 @@ enum XTool: String, CaseIterable, Identifiable {
             return .object(
                 properties: [
                     "id": .string(description: "The authenticated user's ID"),
-                    "source_tweet_id": .string(description: "The tweet ID to unretweet")
+                    "source_tweet_id": .string(description: "The tweet ID of the original post to unretweet. NOT the ID of the authenticated user's post id which encapsulates the original post.")
                 ],
                 required: ["id", "source_tweet_id"]
             )
@@ -605,7 +581,7 @@ enum XTool: String, CaseIterable, Identifiable {
         case .getRetweets:
             return .object(
                 properties: [
-                    "id": .string(description: "The tweet ID"),
+                    "id": .string(description: "The tweet ID of the original post we want to see retweets of."),
                     "max_results": .integer(description: "Maximum results", minimum: 1, maximum: 100),
                 ],
                 required: ["id"]
@@ -988,8 +964,8 @@ extension XTool {
         case .muteUser, .unmuteUser:
             return .requiresConfirmation
 
-        // Block/Unblock
-        case .blockUser, .unblockUser, .blockUserDMs, .unblockUserDMs:
+        // Block/Unblock DMs
+        case .blockUserDMs, .unblockUserDMs:
             return .requiresConfirmation
 
         // Lists
@@ -1335,42 +1311,6 @@ extension XTool {
                 return (title: "Unmute @\(username)", content: "🔊 \(name)")
             }
             return (title: "Unmute User", content: "🔊 Unmute this user?")
-
-        case .blockUser:
-            let targetUserId = params["target_user_id"] as? String ?? ""
-
-            // Fetch the user to be blocked
-            let result = await orchestrator.executeTool(.getUserById, parameters: [
-                "id": targetUserId
-            ])
-
-            if result.success,
-               let responseData = result.response?.data(using: .utf8),
-               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
-               let userData = json["data"] as? [String: Any],
-               let username = userData["username"] as? String,
-               let name = userData["name"] as? String {
-                return (title: "Block @\(username)", content: "🚫 \(name)")
-            }
-            return (title: "Block User", content: "🚫 Block this user?")
-
-        case .unblockUser:
-            let targetUserId = params["target_user_id"] as? String ?? ""
-
-            // Fetch the user to be unblocked
-            let result = await orchestrator.executeTool(.getUserById, parameters: [
-                "id": targetUserId
-            ])
-
-            if result.success,
-               let responseData = result.response?.data(using: .utf8),
-               let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any],
-               let userData = json["data"] as? [String: Any],
-               let username = userData["username"] as? String,
-               let name = userData["name"] as? String {
-                return (title: "Unblock @\(username)", content: "✅ \(name)")
-            }
-            return (title: "Unblock User", content: "✅ Unblock this user?")
 
         case .blockUserDMs:
             let targetUserId = params["target_user_id"] as? String ?? ""
