@@ -1,5 +1,5 @@
 //
-//  GrokPrimaryContentBlock.swift
+//  PrimaryContentBlock.swift
 //  GrokMode
 //
 //  Created by Abdulaziz Albahar on 12/6/25.
@@ -14,7 +14,7 @@ struct TweetMetrics {
     let views: Int
 }
 
-struct GrokPrimaryContentBlock: View {
+struct PrimaryContentBlock: View {
     let sourceIcon: ImageResource = ImageResource(name: "X", bundle: .main)
     let profileImageUrl: String?  // URL to profile image
     let displayName: String
@@ -256,7 +256,7 @@ struct GrokPrimaryContentBlock: View {
             VStack(spacing: 24){
                 Spacer()
 
-                GrokPrimaryContentBlock(
+                PrimaryContentBlock(
                     profileImageUrl: nil,  // Will show X icon as fallback
                     displayName: "Elon Musk",
                     username: "elonmusk",
@@ -267,7 +267,7 @@ struct GrokPrimaryContentBlock: View {
                 )
 
 
-                GrokPrimaryContentBlock(
+                PrimaryContentBlock(
                     profileImageUrl: nil,  // Will show X icon as fallback
                     displayName: "Elon Musk",
                     username: "elonmusk",
@@ -280,7 +280,7 @@ struct GrokPrimaryContentBlock: View {
 
 
 
-                GrokPrimaryContentBlock(
+                PrimaryContentBlock(
                     profileImageUrl: nil,  // Will show X icon as fallback
                     displayName: "Elon Musk",
                     username: "elonmusk",
@@ -302,7 +302,7 @@ struct GrokPrimaryContentBlock: View {
         ScrollView {
             VStack(spacing: 24) {
                 // Simulates loading state with slow/non-existent images
-                GrokPrimaryContentBlock(
+                PrimaryContentBlock(
                     profileImageUrl: nil,
                     displayName: "Tech News",
                     username: "technews",
@@ -348,7 +348,7 @@ struct GrokPrimaryContentBlock: View {
         ScrollView {
             VStack(spacing: 24) {
                 // Uses invalid URLs to trigger failure state
-                GrokPrimaryContentBlock(
+                PrimaryContentBlock(
                     profileImageUrl: nil,
                     displayName: "Photography",
                     username: "photoexample",
@@ -392,7 +392,7 @@ struct GrokPrimaryContentBlock: View {
                 )
 
                 // Single image failure
-                GrokPrimaryContentBlock(
+                PrimaryContentBlock(
                     profileImageUrl: nil,
                     displayName: "Artist",
                     username: "digitalartist",
@@ -422,7 +422,7 @@ struct GrokPrimaryContentBlock: View {
         ScrollView {
             VStack(spacing: 24) {
                 // Uses actual working image URLs
-                GrokPrimaryContentBlock(
+                PrimaryContentBlock(
                     profileImageUrl: nil,
                     displayName: "Sample User",
                     username: "sampleuser",

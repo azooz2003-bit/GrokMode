@@ -106,7 +106,7 @@ struct TweetConversationCard: View {
     let media: [XMedia]
 
     var body: some View {
-        GrokPrimaryContentBlock(
+        PrimaryContentBlock(
             profileImageUrl: author?.profile_image_url,
             displayName: author?.name ?? "Unknown",
             username: author?.username ?? "unknown",
