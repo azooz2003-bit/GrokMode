@@ -178,7 +178,7 @@ struct ToolCallIndicator: View {
             statusIcon
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(toolName)
+                Text(formattedToolName)
                     .font(.caption)
                     .fontWeight(.medium)
 
@@ -197,6 +197,20 @@ struct ToolCallIndicator: View {
         .background(statusColor.opacity(0.1))
         .cornerRadius(8)
         .padding(.horizontal)
+    }
+
+    // Convert tool name to user-friendly format using XTool extension
+    private var formattedToolName: String {
+        // Try to convert string to XTool enum and use its displayName
+        if let tool = XTool(rawValue: toolName) {
+            return tool.displayName
+        }
+
+        // Fallback: convert snake_case to Title Case
+        return toolName
+            .split(separator: "_")
+            .map { $0.capitalized }
+            .joined(separator: " ")
     }
 
     private var statusIcon: some View {
