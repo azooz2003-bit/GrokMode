@@ -301,7 +301,10 @@ class VoiceAssistantViewModel: NSObject {
             handleToolCall(toolCall)
 
         case .error(let errorMessage):
+            AppLogger.voice.error("Error event received: \(errorMessage)")
+#if DEBUG
             addSystemMessage("Error: \(errorMessage)")
+#endif
 
         case .other:
             // Other events we don't specifically handle
