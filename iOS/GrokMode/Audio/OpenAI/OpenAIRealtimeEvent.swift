@@ -2,7 +2,7 @@
 //  OpenAIRealtimeEvent.swift
 //  GrokMode
 //
-//  Created by Claude Code on 12/18/25.
+//  Created by Abdulaziz Albahar on 12/18/25.
 //
 
 import JSONSchema
