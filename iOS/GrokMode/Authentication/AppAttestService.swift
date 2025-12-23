@@ -1,0 +1,121 @@
+//
+//  AppAttestService.swift
+//  GrokMode
+//
+//  Created by Abdulaziz Albahar on 12/21/25.
+//
+
+import Foundation
+import DeviceCheck
+import CryptoKit
+
+enum AppAttestError: Error {
+    case notSupported
+    case notAttested
+    case verificationFailed
+    case invalidResponse
+}
+
+actor AppAttestService {
+    static let shared = AppAttestService()
+
+    private let service = DCAppAttestService.shared
+    private let keychain = KeychainHelper()
+    private let keyIdKey = "app_attest_key_id"
+
+    var isSupported: Bool {
+        service.isSupported
+    }
+
+    func getOrCreateAttestedKey() async throws -> String {
+        if let existingKeyId = await keychain.getString(for: keyIdKey) {
+            return existingKeyId
+        }
+        return try await attestNewKey()
+    }
+
+    private func attestNewKey() async throws -> String {
+        guard service.isSupported else {
+            throw AppAttestError.notSupported
+        }
+
+        let keyId = try await service.generateKey()
+        let challenge = try await fetchChallenge()
+        let attestation = try await service.attestKey(keyId, clientDataHash: challenge)
+        try await verifyAttestation(keyId: keyId, attestation: attestation, challenge: challenge)
+        try await keychain.save(keyId, for: keyIdKey)
+
+        return keyId
+    }
+
+    func generateAssertion(for request: URLRequest) async throws -> (keyId: String, assertion: Data) {
+        guard let keyId = await keychain.getString(for: keyIdKey) else {
+            let _ = try await attestNewKey()
+            return try await generateAssertion(for: request)
+        }
+
+        let clientDataHash = try createClientDataHash(from: request)
+        let assertion = try await service.generateAssertion(keyId, clientDataHash: clientDataHash)
+
+        return (keyId, assertion)
+    }
+
+    func clearAttestation() async {
+        await keychain.delete(keyIdKey)
+    }
+
+    // MARK: - Helpers
+
+    private func fetchChallenge() async throws -> Data {
+        let url = Config.baseProxyURL.appending(path: "attest/challenge")
+        let (data, response) = try await URLSession.shared.data(from: url)
+
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else {
+            throw AppAttestError.invalidResponse
+        }
+
+        return data
+    }
+
+    private func verifyAttestation(keyId: String, attestation: Data, challenge: Data) async throws {
+        let url = Config.baseProxyURL.appending(path: "attest/verify")
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let body: [String: String] = [
+            "keyId": keyId,
+            "attestation": attestation.base64EncodedString(),
+            "challenge": challenge.base64EncodedString()
+        ]
+        request.httpBody = try JSONEncoder().encode(body)
+
+        let (_, response) = try await URLSession.shared.data(for: request)
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else {
+            throw AppAttestError.verificationFailed
+        }
+    }
+
+    private func createClientDataHash(from request: URLRequest) throws -> Data {
+        var data = Data()
+
+        if let url = request.url {
+            if let path = url.path.data(using: .utf8) {
+                data.append(path)
+            }
+            if let query = url.query?.data(using: .utf8) {
+                data.append(query)
+            }
+        }
+
+        if let method = request.httpMethod?.data(using: .utf8) {
+            data.append(method)
+        }
+
+        if let body = request.httpBody {
+            data.append(body)
+        }
+
+        return Data(SHA256.hash(data: data))
+    }
+}

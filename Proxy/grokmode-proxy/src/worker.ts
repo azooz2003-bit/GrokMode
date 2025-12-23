@@ -1,9 +1,13 @@
+import { verifyAttestation, verifyAssertion, generateChallenge } from './appAttest';
+
 export interface Env {
     X_AI_API_KEY: string;
     OPENAI_API_KEY: string;
-    APP_SECRET: string;
     X_OAUTH2_CLIENT_SECRET: string;
     X_OAUTH2_CLIENT_ID: string;
+    ATTEST_STORE: KVNamespace;
+    TEAM_ID: string;
+    BUNDLE_ID: string;
 }
 
 // Request body types
@@ -17,15 +21,80 @@ interface TokenRefreshRequest {
     refresh_token: string;
 }
 
+async function createClientDataHash(request: Request): Promise<string> {
+    const url = new URL(request.url);
+    const encoder = new TextEncoder();
+    let data = new Uint8Array();
+
+    const pathData = encoder.encode(url.pathname);
+    data = new Uint8Array([...data, ...pathData]);
+
+    if (url.search) {
+        const queryData = encoder.encode(url.search);
+        data = new Uint8Array([...data, ...queryData]);
+    }
+
+    const methodData = encoder.encode(request.method);
+    data = new Uint8Array([...data, ...methodData]);
+
+    if (request.body && request.method !== 'GET') {
+        const bodyData = new Uint8Array(await request.clone().arrayBuffer());
+        data = new Uint8Array([...data, ...bodyData]);
+    }
+
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return btoa(String.fromCharCode(...hashArray));
+}
+
 export default {
     async fetch(request: Request, env: Env, ctx: ExecutionContext):
 Promise<Response> {
         const url = new URL(request.url);
 
-        // Auth check
-        const appSecret = request.headers.get('X-App-Secret');
-        if (appSecret !== env.APP_SECRET) {
-            return new Response('Unauthorized', { status: 401 });
+        if (url.pathname === '/attest/challenge') {
+            const challenge = generateChallenge();
+            return new Response(challenge, {
+                headers: { 'Content-Type': 'application/octet-stream' }
+            });
+        }
+
+        if (url.pathname === '/attest/verify') {
+            try {
+                const { keyId, attestation, challenge } = await request.json() as any;
+                const isValid = await verifyAttestation(keyId, attestation, challenge, env);
+
+                if (isValid) {
+                    return new Response('OK', { status: 200 });
+                } else {
+                    return new Response('Invalid attestation', { status: 403 });
+                }
+            } catch (error) {
+                return new Response('Attestation verification failed', { status: 500 });
+            }
+        }
+
+        const protectedPaths = [
+            '/grok/v1/realtime/client_secrets',
+            '/openai/v1/realtime/client_secrets',
+            '/x/oauth2/token',
+            '/x/oauth2/refresh'
+        ];
+
+        if (protectedPaths.some(path => url.pathname === path)) {
+            const keyId = request.headers.get('X-Apple-Attest-Key-Id');
+            const assertion = request.headers.get('X-Apple-Attest-Assertion');
+
+            if (!keyId || !assertion) {
+                return new Response('Missing App Attest headers', { status: 401 });
+            }
+
+            const clientDataHash = await createClientDataHash(request);
+            const isValid = await verifyAssertion(keyId, assertion, clientDataHash, env);
+
+            if (!isValid) {
+                return new Response('Invalid App Attest assertion', { status: 403 });
+            }
         }
 
         // Get ephemeral token for Grok Voice API

@@ -158,10 +158,10 @@ class XAIVoiceService: VoiceService {
         var request = URLRequest(url: sessionURL)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(Config.appSecret, forHTTPHeaderField: "X-App-Secret")
 
         let requestBody = ["expires_after": ["seconds": 300]]
         request.httpBody = try JSONEncoder().encode(requestBody)
+        try await request.addAppAttestHeaders()
 
         #if DEBUG
         AppLogger.network.debug("Token request URL: \(self.sessionURL.absoluteString)")

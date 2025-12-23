@@ -170,7 +170,6 @@ class OpenAIVoiceService: VoiceService {
         var request = URLRequest(url: tokenURL)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(Config.appSecret, forHTTPHeaderField: "X-App-Secret")
 
         // OpenAI requires session configuration wrapped in "session" key
         let requestBody: [String: Any] = [
@@ -186,6 +185,7 @@ class OpenAIVoiceService: VoiceService {
         ]
 
         request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+        try await request.addAppAttestHeaders()
 
         #if DEBUG
         AppLogger.network.debug("Token request URL: \(self.tokenURL.absoluteString)")

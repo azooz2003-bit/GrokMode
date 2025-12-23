@@ -41,6 +41,7 @@ struct VoiceAssistantView: View {
                                       Text(VoiceServiceType.openai.displayName).tag(VoiceServiceType.openai)
                                       Text(VoiceServiceType.xai.displayName).tag(VoiceServiceType.xai)
                                   }
+                                  .disabled(viewModel.isSessionActivated)
                               } label: {
                                   HStack(spacing: 4) {
                                       Image(ImageResource(name: viewModel.selectedServiceType.iconName, bundle: .main))

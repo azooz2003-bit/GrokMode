@@ -1,6 +1,10 @@
 {
   "compilerOptions": {
+    "target": "ES2021",
+    "module": "ESNext",
+    "lib": ["ES2021"],
     "types": ["@cloudflare/workers-types"],
-    "lib": ["ES2021"]
+    "moduleResolution": "bundler",
+    "allowSyntheticDefaultImports": true
   }
 }
