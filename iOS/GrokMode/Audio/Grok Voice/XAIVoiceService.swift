@@ -497,6 +497,13 @@ class XAIVoiceService: VoiceService {
                  sessionState.addCall(id: callId, toolName: name, parameters: params ?? ["raw": arguments], itemId: message.item_id)
              }
 
+        case .responseDone:
+            if let messageData = try? JSONEncoder().encode(message),
+               let jsonString = String(data: messageData, encoding: .utf8) {
+                AppLogger.voice.info("Received response.done event")
+                AppLogger.logSensitive(AppLogger.voice, level: .debug, "response.done JSON:\n\(AppLogger.prettyJSON(jsonString))")
+            }
+
         default:
             break
         }

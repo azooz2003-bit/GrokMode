@@ -166,6 +166,9 @@ struct XAIConversationEvent: Codable {
         let output_tokens: Int?
         let output_token_details: TokenDetails?
         let total_tokens: Int?
+        let completion_tokens: Int?
+        let prompt_tokens: Int?
+        let num_sources_used: Int?
     }
 
     struct TokenDetails: Codable {
