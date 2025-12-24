@@ -49,8 +49,8 @@ actor XToolOrchestrator {
             AppLogger.tools.debug("TOOL CALL: Executing \(tool.name) (attempt \(attempt))")
             AppLogger.tools.debug("TOOL CALL: URL: \(request.url?.absoluteString ?? "nil")")
             AppLogger.tools.debug("TOOL CALL: Method: \(request.httpMethod ?? "nil")")
-            if let body = request.httpBody, let bodyString = String(data: body, encoding: .utf8) {
-                AppLogger.logSensitive(AppLogger.tools, level: .debug, "TOOL CALL: Body: \(bodyString)")
+            if let body = request.httpBody {
+                AppLogger.logSensitive(AppLogger.tools, level: .debug, "TOOL CALL: Body:\n\(AppLogger.prettyJSON(body))")
             }
             #endif
 
@@ -68,9 +68,7 @@ actor XToolOrchestrator {
 
             #if DEBUG
             AppLogger.network.debug("TOOL CALL: Status Code: \(httpResponse.statusCode)")
-            if let responseString = String(data: data, encoding: .utf8) {
-                AppLogger.logSensitive(AppLogger.network, level: .debug, "TOOL CALL: Response: \(responseString)")
-            }
+            AppLogger.logSensitive(AppLogger.network, level: .debug, "TOOL CALL: Response:\n\(AppLogger.prettyJSON(data))")
             #endif
 
             if httpResponse.statusCode >= 200 && httpResponse.statusCode < 300 {

@@ -60,4 +60,26 @@ enum AppLogger {
         let suffix = value.suffix(visibleSuffix)
         return "\(prefix)...\(suffix)"
     }
+
+    /// Pretty prints JSON data for logging
+    /// - Parameter data: JSON data to format
+    /// - Returns: Pretty-printed JSON string, or original data as string if formatting fails
+    static func prettyJSON(_ data: Data) -> String {
+        guard let json = try? JSONSerialization.jsonObject(with: data),
+              let prettyData = try? JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys]),
+              let prettyString = String(data: prettyData, encoding: .utf8) else {
+            return String(data: data, encoding: .utf8) ?? "Unable to decode"
+        }
+        return prettyString
+    }
+
+    /// Pretty prints JSON string for logging
+    /// - Parameter jsonString: JSON string to format
+    /// - Returns: Pretty-printed JSON string, or original string if formatting fails
+    static func prettyJSON(_ jsonString: String) -> String {
+        guard let data = jsonString.data(using: .utf8) else {
+            return jsonString
+        }
+        return prettyJSON(data)
+    }
 }

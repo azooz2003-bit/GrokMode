@@ -227,7 +227,7 @@ public actor XAuthService {
                 }
 
                 AppLogger.auth.debug("Token exchange response status: \(urlResponse.statusCode)")
-                AppLogger.logSensitive(AppLogger.auth, level: .debug, "Response body: \(String(data: responseData, encoding: .utf8) ?? "Unable to decode")")
+                AppLogger.logSensitive(AppLogger.auth, level: .debug, "Response body:\n\(AppLogger.prettyJSON(responseData))")
 
                 if urlResponse.statusCode == 403 && currentAttempt < maxRetries {
                     AppLogger.auth.warning("Attestation rejected (403), clearing and retrying...")

@@ -178,9 +178,7 @@ class XAIVoiceService: VoiceService {
 
             #if DEBUG
             AppLogger.network.debug("Response status: \(httpResponse.statusCode)")
-            if let responseString = String(data: data, encoding: .utf8) {
-                AppLogger.logSensitive(AppLogger.network, level: .debug, "Response body: \(responseString)")
-            }
+            AppLogger.logSensitive(AppLogger.network, level: .debug, "Response body:\n\(AppLogger.prettyJSON(data))")
             #endif
 
             guard httpResponse.statusCode == 200 else {

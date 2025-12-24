@@ -189,7 +189,7 @@ class OpenAIVoiceService: VoiceService {
 
         #if DEBUG
         AppLogger.network.debug("Token request URL: \(self.tokenURL.absoluteString)")
-        AppLogger.logSensitive(AppLogger.network, level: .debug, "Request body: \(String(data: request.httpBody!, encoding: .utf8) ?? "")")
+        AppLogger.logSensitive(AppLogger.network, level: .debug, "Request body:\n\(AppLogger.prettyJSON(request.httpBody!))")
         #endif
 
         do {
@@ -202,9 +202,7 @@ class OpenAIVoiceService: VoiceService {
 
             #if DEBUG
             AppLogger.network.debug("Response status: \(httpResponse.statusCode)")
-            if let responseString = String(data: data, encoding: .utf8) {
-                AppLogger.logSensitive(AppLogger.network, level: .debug, "Response body: \(responseString)")
-            }
+            AppLogger.logSensitive(AppLogger.network, level: .debug, "Response body:\n\(AppLogger.prettyJSON(data))")
             #endif
 
             guard httpResponse.statusCode == 200 else {
