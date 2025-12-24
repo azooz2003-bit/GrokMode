@@ -23,7 +23,7 @@ class XAIVoiceService: VoiceService {
     var requiredSampleRate: Int { sampleRate.rawValue }
 
     // Configuration
-    let voice = XAIConversationEvent.SessionConfig.Voice.Leo
+    let voice = XAIConversationEvent.SessionConfig.Voice.Rex
     var instructions = """
     You are Tweety, a voice assistant that acts as the voice gateway to everything in a user's X account. You do everything reliably, and you know when to prioritize speed.
 

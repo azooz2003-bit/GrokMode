@@ -1336,8 +1336,7 @@ extension XTool {
 
         case .sendDMToConversation:
             let text = params["text"] as? String ?? ""
-            let conversationId = params["dm_conversation_id"] as? String ?? ""
-            return (title: "Send DM", content: "💬 \"\(text)\"\n\nConversation ID: \(conversationId)")
+            return (title: "Send DM", content: "💬 \"\(text)\"")
 
         case .createDMConversation:
             let text: String
@@ -1370,8 +1369,7 @@ extension XTool {
             return (title: "Create DM Conversation", content: "💬 \"\(text)\"")
 
         case .deleteDMEvent:
-            let eventId = params["dm_event_id"] as? String ?? ""
-            return (title: "Delete Message", content: "🗑️ Delete this DM?\n\nEvent ID: \(eventId)")
+            return (title: "Delete Message", content: "🗑️ Delete this DM?")
 
         // MARK: - User Actions
         case .followUser:

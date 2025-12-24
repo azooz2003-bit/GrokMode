@@ -367,7 +367,7 @@ class VoiceAssistantViewModel: NSObject {
                         functionName: functionName,
                         arguments: toolCall.arguments,
                         previewTitle: preview?.title ?? "Allow \(functionName)?",
-                        previewContent: preview?.content ?? toolCall.arguments
+                        previewContent: preview?.content ?? "Review and confirm this action"
                     )
                 }
             }

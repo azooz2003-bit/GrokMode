@@ -27,7 +27,7 @@ class OpenAIVoiceService: VoiceService {
         case alloy, ash, ballad, coral, echo, sage, shimmer, verse
     }
 
-    let voice = Voice.alloy
+    let voice = Voice.coral
     var instructions = """
     You are Tweety, a voice assistant that acts as the voice gateway to everything in a user's X account. You do everything reliably, and you know when to prioritize speed.
 
