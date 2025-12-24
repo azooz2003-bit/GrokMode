@@ -271,7 +271,7 @@ class OpenAIVoiceService: VoiceService {
                 object: nil,
                 type: "realtime",
                 model: "gpt-realtime",
-                instructions: config.instructions + "\n\nToday's Date: \(DateFormatter.localizedString(from: Date(), dateStyle: .full, timeStyle: .none)).",
+                instructions: config.instructions + "\n\nToday's Date: \(DateFormatter.localizedString(from: Date(), dateStyle: .full, timeStyle: .none)).\nUser's Locale: \(Locale.current.identifier) (Language: \(Locale.current.language.languageCode?.identifier ?? "unknown"), Region: \(Locale.current.region?.identifier ?? "unknown"))",
                 voice: nil, // Not used in OpenAI - it's in audio.output.voice
                 audio: OpenAIRealtimeEvent.AudioConfig(
                     input: OpenAIRealtimeEvent.AudioConfig.Input(

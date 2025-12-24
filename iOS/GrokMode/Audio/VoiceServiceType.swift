@@ -19,6 +19,16 @@ enum VoiceServiceType: String, CaseIterable, Identifiable {
         rawValue
     }
 
+    /// Assistant name shown to users
+    var assistantName: String {
+        switch self {
+        case .xai:
+            return "Grok"
+        case .openai:
+            return "GPT-Realtime"
+        }
+    }
+
     /// Icon name for the service
     var iconName: String {
         switch self {

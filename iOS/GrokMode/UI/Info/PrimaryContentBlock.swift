@@ -270,7 +270,7 @@ struct PrimaryContentBlock: View {
                     profileImageUrl: nil,  // Will show X icon as fallback
                     displayName: "Elon Musk",
                     username: "elonmusk",
-                    text: "Just had a great conversation with Grok about the future of AI and space exploration. The possibilities are endless when you combine these technologies!",
+                    text: "Just had a great conversation about the future of AI and space exploration. The possibilities are endless when you combine these technologies!",
                     media: nil,
                     metrics: TweetMetrics(likes: 12500, retweets: 3400, views: 150000),
                     tweetUrl: "https://twitter.com/elonmusk/status/1234567890"
@@ -281,7 +281,7 @@ struct PrimaryContentBlock: View {
                     profileImageUrl: nil,  // Will show X icon as fallback
                     displayName: "Elon Musk",
                     username: "elonmusk",
-                    text: "Just had a great conversation with Grok about the future of AI and space exploration. The possibilities are endless when you combine these technologies!",
+                    text: "Just had a great conversation about the future of AI and space exploration. The possibilities are endless when you combine these technologies!",
                     media: nil,
                     metrics: TweetMetrics(likes: 12500, retweets: 3400, views: 150000),
                     tweetUrl: "https://twitter.com/elonmusk/status/1234567890"
@@ -294,7 +294,7 @@ struct PrimaryContentBlock: View {
                     profileImageUrl: nil,  // Will show X icon as fallback
                     displayName: "Elon Musk",
                     username: "elonmusk",
-                    text: "Just had a great conversation with Grok about the future of AI and space exploration. The possibilities are endless when you combine these technologies! Just had a great conversation with Grok about the future of AI. Just had a great conversation with Grok about the future of AI",
+                    text: "Just had a great conversation about the future of AI and space exploration. The possibilities are endless when you combine these technologies! Just had a great conversation about the future of AI. Just had a great conversation about the future of AI",
                     media: nil,
                     metrics: TweetMetrics(likes: 12500, retweets: 3400, views: 150000),
                     tweetUrl: "https://twitter.com/elonmusk/status/1234567890"

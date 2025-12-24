@@ -170,6 +170,7 @@ struct VoiceAssistantView: View {
         )) { toolCall in
             ToolConfirmationSheet(
                 toolCall: toolCall,
+                serviceName: viewModel.selectedServiceType.assistantName,
                 onApprove: { viewModel.approveToolCall() },
                 onCancel: { viewModel.rejectToolCall() }
             )

@@ -9,6 +9,7 @@ import SwiftUI
 
 struct ToolConfirmationSheet: View {
     let toolCall: PendingToolCall
+    let serviceName: String
     let onApprove: () -> Void
     let onCancel: () -> Void
 
@@ -29,8 +30,8 @@ struct ToolConfirmationSheet: View {
                     Text("Preview Action")
                         .font(.headline)
                         .foregroundStyle(.primary)
-                    
-                    Text("Grok needs your confirmation")
+
+                    Text("\(serviceName) needs your confirmation")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -105,5 +106,5 @@ struct ToolConfirmationSheet: View {
 }
 
 #Preview("Sheet") {
-    ToolConfirmationSheet(toolCall: .init(id: "ddwd", functionName: "ffq", arguments: "fqfq", previewTitle: "fqf", previewContent: "fqffff"), onApprove: {}, onCancel: {})
+    ToolConfirmationSheet(toolCall: .init(id: "ddwd", functionName: "ffq", arguments: "fqfq", previewTitle: "fqf", previewContent: "fqffff"), serviceName: "xAI", onApprove: {}, onCancel: {})
 }
