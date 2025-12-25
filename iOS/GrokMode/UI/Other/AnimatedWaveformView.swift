@@ -132,7 +132,7 @@ struct AnimatedWaveformView: View {
                 HStack(spacing: barSpacing) {
                     ForEach(0..<calculatedBarCount, id: \.self) { index in
                         RoundedRectangle(cornerRadius: barWidth / 2)
-                            .fill(isAnimating ? accentColor : Color.black)
+                            .fill(accentColor)
                             .frame(width: barWidth)
                             .frame(height: barHeight(for: index, totalBars: calculatedBarCount))
                     }
@@ -144,9 +144,8 @@ struct AnimatedWaveformView: View {
             HStack(spacing: barSpacing) {
                 ForEach(0..<count, id: \.self) { index in
                     RoundedRectangle(cornerRadius: barWidth / 2)
-                        .fill(isAnimating ? accentColor : Color.black)
-                        .frame(width: barWidth)
-                        .frame(height: barHeight(for: index, totalBars: count))
+                        .fill(accentColor)
+                        .frame(width: barWidth, height: barHeight(for: index, totalBars: count))
                 }
             }
         }
@@ -154,7 +153,7 @@ struct AnimatedWaveformView: View {
 
     private func calculateBarCount(for width: CGFloat) -> Int {
         let totalSpacing = barWidth + barSpacing
-        let count = Int(width / totalSpacing)
+        let count = Int(width / totalSpacing) - 1
         return max(5, count)
     }
 
@@ -178,14 +177,22 @@ struct AnimatedWaveformView: View {
     @Previewable @State var isAnimating = false
 
     ZStack {
-        Color.black.ignoresSafeArea()
+        Color.white.ignoresSafeArea()
 
         VStack(spacing: 20) {
-            AnimatedWaveformView(
-                animator: animator,
-                barCount: 40,
-                isAnimating: isAnimating
-            )
+            Button {
+
+            } label: {
+                AnimatedWaveformView(
+                    animator: animator,
+                    barCount: 20,
+                    accentColor: .white,
+                    isAnimating: isAnimating,
+                    fillWidth: false
+                )
+            }
+            .background(.blue)
+
 
             Button("Toggle") {
                 isAnimating.toggle()
@@ -195,6 +202,10 @@ struct AnimatedWaveformView: View {
                     animator.stopAnimating()
                 }
             }
+
+            Spacer()
         }
+        .padding()
     }
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
 }

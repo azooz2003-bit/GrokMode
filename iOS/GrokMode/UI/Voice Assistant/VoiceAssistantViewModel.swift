@@ -27,9 +27,11 @@ class VoiceAssistantViewModel: NSObject {
     private var sessionStartStopTask: Task<Void, Never>?
 
     var formattedSessionDuration: String {
-        let minutes = Int(sessionElapsedTime) / 60
-        let seconds = Int(sessionElapsedTime) % 60
-        return String(format: "%d:%02d", minutes, seconds)
+        let formatter = DateComponentsFormatter()
+        formatter.allowedUnits = [.minute, .second]
+        formatter.zeroFormattingBehavior = .pad
+        formatter.unitsStyle = .positional
+        return formatter.string(from: sessionElapsedTime) ?? "0:00"
     }
 
     var conversationItems: [ConversationItem] = []

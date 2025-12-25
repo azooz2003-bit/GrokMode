@@ -15,6 +15,9 @@ struct VoiceAssistantView: View {
 
     let shouldAutoconnect: Bool
 
+    let barWidth: CGFloat = 3
+    let barSpacing: CGFloat = 4
+
     init(autoConnect: Bool = false, authViewModel: AuthViewModel) {
         self.shouldAutoconnect = autoConnect
         self._viewModel = State(initialValue: VoiceAssistantViewModel(authViewModel: authViewModel))
@@ -35,40 +38,7 @@ struct VoiceAssistantView: View {
                               .foregroundStyle(Color(.label).opacity(0.6))
                               .padding(.top, 5)
 
-                          HStack(spacing: 8) {
-                              Menu {
-                                  Picker("", selection: $viewModel.selectedServiceType) {
-                                      Text(VoiceServiceType.openai.displayName).tag(VoiceServiceType.openai)
-                                      Text(VoiceServiceType.xai.displayName).tag(VoiceServiceType.xai)
-                                  }
-                                  .disabled(viewModel.isSessionActivated)
-                              } label: {
-                                  HStack(spacing: 4) {
-                                      Image(ImageResource(name: viewModel.selectedServiceType.iconName, bundle: .main))
-                                          .resizable()
-                                          .frame(width: 25, height: 25)
-                                      Text(viewModel.selectedServiceType.displayName)
-                                          .padding(.trailing, 4)
-
-                                      Group {
-                                          if viewModel.voiceSessionState.isConnected {
-                                              Circle()
-                                                  .fill(Color.green)
-                                          } else if viewModel.voiceSessionState.isConnecting {
-                                              ProgressView()
-                                                  .scaleEffect(0.7)
-                                          } else {
-                                              Image(systemName: "chevron.down")
-                                                  .font(.caption)
-                                          }
-                                      }
-                                      .frame(width: 8, height: 8)
-
-                                  }
-                                  .frame(minWidth: 130) // To get around iOS image cropping glitch
-                                  .bold()
-                              }
-                          }
+                          voiceServicePicker
                       }
                   }
               }
@@ -82,42 +52,7 @@ struct VoiceAssistantView: View {
                 }
                 
                 ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Menu("Voice Service") {
-                            Picker("Service", selection: $viewModel.selectedServiceType) {
-                                ForEach(VoiceServiceType.allCases) { serviceType in
-                                    Label(serviceType.displayName, systemImage: serviceType == .xai ? "circle.slash" : "brain.head.profile")
-                                        .tag(serviceType)
-                                }
-                            }
-                            .pickerStyle(.inline)
-                            .disabled(viewModel.isSessionActivated)
-                        }
-
-                        Section {
-                            Button {
-                                Task {
-                                    await viewModel.logoutX()
-                                }
-                            } label: {
-                                Label("Logout", systemImage: "rectangle.portrait.and.arrow.right")
-                            }
-                        }
-
-                        #if DEBUG
-                        Section("Debug") {
-                            Button {
-                                Task {
-                                    await viewModel.testRefreshToken()
-                                }
-                            } label: {
-                                Label("Test Refresh Token", systemImage: "arrow.clockwise")
-                            }
-                        }
-                        #endif
-                    } label: {
-                        Image(systemName: "ellipsis")
-                    }
+                    debugPicker
                 }
 
                 ToolbarItem(placement:.bottomBar) {
@@ -128,7 +63,7 @@ struct VoiceAssistantView: View {
                             }
                         }
                     } else {
-                        waveformButton(barCount: 37)
+                        waveformButton(barCount: 37, fillWidth: true)
                     }
 
                 }
@@ -185,18 +120,34 @@ struct VoiceAssistantView: View {
     }
 
     @ViewBuilder
-    private func waveformButton(barCount: Int, action: @escaping () -> Void = {}) -> some View {
-        Button {
-            action()
-        } label: {
-            AnimatedWaveformView(animator: animator, barCount: barCount, accentColor: .background, isAnimating: isAnimating)
+    private func waveformButton(barCount: Int, fillWidth: Bool = false, action: @escaping () -> Void = {}) -> some View {
+        GeometryReader { proxy in
+            let width = proxy.size.width
+            let barCountThatFits = calculateBarCount(for: width)
+
+            Button {
+                action()
+            } label: {
+                AnimatedWaveformView(animator: animator, barCount: barCountThatFits, barSpacing: barSpacing, barWidth: barWidth, accentColor: .background, isAnimating: isAnimating)
+            }
+            .buttonStyle(.glassProminent)
+            .tint(Color(.label))
+            .frame(width: width)
         }
-        .buttonStyle(.glassProminent)
-        .tint(.white)
+        .if(!fillWidth) {
+            $0.aspectRatio(contentMode: .fit)
+        }
+    }
+
+    private func calculateBarCount(for width: CGFloat) -> Int {
+        let totalSpacing = barWidth + barSpacing
+        let count = Int(width / totalSpacing) - 1
+        return max(5, count)
     }
 
     // MARK: - Subviews
 
+    @ViewBuilder
     private var conversationList: some View {
         ScrollViewReader { scrollProxy in
             List {
@@ -218,14 +169,90 @@ struct VoiceAssistantView: View {
         }
     }
 
+    @ViewBuilder
     private var stopButton: some View {
         Button("Stop", systemImage: "stop.fill") {
             withAnimation {
                 viewModel.stopSession()
             }
         }
-        .foregroundStyle(.white)
         .font(.system(size: 20))
+    }
+
+    @ViewBuilder
+    private var debugPicker: some View {
+        Menu {
+            Menu("Voice Service") {
+                Picker("Service", selection: $viewModel.selectedServiceType) {
+                    ForEach(VoiceServiceType.allCases) { serviceType in
+                        Label(serviceType.displayName, systemImage: serviceType == .xai ? "circle.slash" : "brain.head.profile")
+                            .tag(serviceType)
+                    }
+                }
+                .pickerStyle(.inline)
+                .disabled(viewModel.isSessionActivated)
+            }
+
+            Section {
+                Button {
+                    Task {
+                        await viewModel.logoutX()
+                    }
+                } label: {
+                    Label("Logout", systemImage: "rectangle.portrait.and.arrow.right")
+                }
+            }
+
+            #if DEBUG
+            Section("Debug") {
+                Button {
+                    Task {
+                        await viewModel.testRefreshToken()
+                    }
+                } label: {
+                    Label("Test Refresh Token", systemImage: "arrow.clockwise")
+                }
+            }
+            #endif
+        } label: {
+            Image(systemName: "ellipsis")
+        }
+    }
+
+    @ViewBuilder
+    private var voiceServicePicker: some View {
+        Menu {
+            Picker("", selection: $viewModel.selectedServiceType) {
+                Text(VoiceServiceType.openai.displayName).tag(VoiceServiceType.openai)
+                Text(VoiceServiceType.xai.displayName).tag(VoiceServiceType.xai)
+            }
+            .disabled(viewModel.isSessionActivated)
+        } label: {
+            HStack(spacing: 4) {
+                Image(ImageResource(name: viewModel.selectedServiceType.iconName, bundle: .main))
+                    .resizable()
+                    .frame(width: 25, height: 25)
+                Text(viewModel.selectedServiceType.displayName)
+                    .padding(.trailing, 4)
+
+                Group {
+                    if viewModel.voiceSessionState.isConnected {
+                        Circle()
+                            .fill(Color.green)
+                    } else if viewModel.voiceSessionState.isConnecting {
+                        ProgressView()
+                            .scaleEffect(0.7)
+                    } else {
+                        Image(systemName: "chevron.down")
+                            .font(.caption)
+                    }
+                }
+                .frame(width: 8, height: 8)
+
+            }
+            .frame(minWidth: 130) // To get around iOS image cropping glitch
+            .bold()
+        }
     }
 }
 
