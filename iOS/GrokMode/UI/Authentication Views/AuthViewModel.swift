@@ -8,7 +8,6 @@
 import Foundation
 import UIKit
 
-@MainActor
 @Observable
 final class AuthViewModel {
     var isAuthenticated = false

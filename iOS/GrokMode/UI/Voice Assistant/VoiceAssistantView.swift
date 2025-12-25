@@ -6,12 +6,14 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct VoiceAssistantView: View {
     @State private var viewModel: VoiceAssistantViewModel
     @State private var animator = WaveformAnimator()
     @State var isAnimating = false
     @State private var showSettings = false
+    @State private var hapticGenerator = UIImpactFeedbackGenerator(style: .light) // @State so that it's not frequently recreated
 
     let shouldAutoconnect: Bool
 
@@ -58,6 +60,7 @@ struct VoiceAssistantView: View {
                 ToolbarItem(placement:.bottomBar) {
                     if !viewModel.isSessionActivated {
                         waveformButton(barCount: 5) {
+                            hapticGenerator.impactOccurred()
                             withAnimation {
                                 viewModel.startSession()
                             }
@@ -88,6 +91,7 @@ struct VoiceAssistantView: View {
             }
             .onAppear {
                 viewModel.checkPermissions()
+                hapticGenerator.prepare() // Prepare haptic generator for reduced latency
             }
             .onChange(of: viewModel.currentAudioLevel) { oldValue, newValue in
                 // Update waveform based on real audio level
@@ -96,6 +100,16 @@ struct VoiceAssistantView: View {
                 // Update animation state based on audio activity
                 withAnimation {
                     isAnimating = newValue > 0.1 // Consider animating if level is above threshold
+                }
+            }
+            .onChange(of: viewModel.voiceSessionState) { oldState, newState in
+                // Haptic feedback when session connects or disconnects
+                if oldState != newState {
+                    if newState == .connected {
+                        hapticGenerator.impactOccurred()
+                    } else if newState == .disconnected && oldState == .connected {
+                        hapticGenerator.impactOccurred()
+                    }
                 }
             }
         }
@@ -172,6 +186,7 @@ struct VoiceAssistantView: View {
     @ViewBuilder
     private var stopButton: some View {
         Button("Stop", systemImage: "stop.fill") {
+            hapticGenerator.impactOccurred()
             withAnimation {
                 viewModel.stopSession()
             }
