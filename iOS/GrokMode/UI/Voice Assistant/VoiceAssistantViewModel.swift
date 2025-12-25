@@ -515,28 +515,7 @@ class VoiceAssistantViewModel: NSObject {
         addConversationItem(.systemMessage(message))
     }
 
-    private func removeTCoLink(from text: String) -> String {
-        // Remove t.co links that Twitter adds for quoted tweets
-        // Pattern matches https://t.co/xxxxx (usually at the end of the text)
-        let pattern = #"\s*https://t\.co/\w+\s*$"#
-        guard let regex = try? NSRegularExpression(pattern: pattern) else {
-            return text
-        }
-        let range = NSRange(text.startIndex..., in: text)
-        return regex.stringByReplacingMatches(in: text, range: range, withTemplate: "").trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
     private func parseTweetsFromResponse(_ response: String, toolName: String) {
-        struct TweetResponse: Codable {
-            let data: [XTweet]?
-            let includes: Includes?
-            struct Includes: Codable {
-                let users: [XUser]?
-                let media: [XMedia]?
-                let tweets: [XTweet]?
-            }
-        }
-
         let tweetTools: Set<XTool> = [
             .searchRecentTweets, .searchAllTweets, .getTweets, .getTweet,
             .getUserLikedTweets, .getUserTweets, .getUserMentions, .getHomeTimeline, .getRepostsOfMe
@@ -545,59 +524,16 @@ class VoiceAssistantViewModel: NSObject {
         guard let data = response.data(using: .utf8),
               let tool = XTool(rawValue: toolName),
               tweetTools.contains(tool),
-              let tweetResponse = try? JSONDecoder().decode(TweetResponse.self, from: data),
+              let tweetResponse = try? JSONDecoder().decode(XTweetResponse.self, from: data),
               let tweets = tweetResponse.data else {
             AppLogger.voice.error("Failed to parse tweets from response.")
             return
         }
 
+        // Enrich each tweet with related data and add to conversation
         tweets.forEach { tweet in
-            // Determine which tweet to display (original if retweet, else the tweet itself)
-            var displayTweet = tweet
-            var retweeter: XUser? = nil
-            var retweetId: String? = nil
-
-            if tweet.isRetweet,
-               let retweetedId = tweet.retweetedTweetId,
-               let originalTweet = tweetResponse.includes?.tweets?.first(where: { $0.id == retweetedId }) {
-                displayTweet = originalTweet
-                retweeter = tweetResponse.includes?.users?.first { $0.id == tweet.author_id }
-                retweetId = tweet.id
-            }
-
-            // Get author and media for the display tweet
-            let author = tweetResponse.includes?.users?.first { $0.id == displayTweet.author_id }
-            let media = displayTweet.attachments?.media_keys?.compactMap { key in
-                tweetResponse.includes?.media?.first { $0.media_key == key }
-            } ?? []
-
-            // Check if display tweet has a quoted tweet
-            var quotedTweetInfo: QuotedTweetInfo? = nil
-            if displayTweet.isQuoteTweet,
-               let quotedId = displayTweet.quotedTweetId,
-               let quotedTweetData = tweetResponse.includes?.tweets?.first(where: { $0.id == quotedId }),
-               let quotedAuthor = tweetResponse.includes?.users?.first(where: { $0.id == quotedTweetData.author_id }) {
-                let quotedMedia = quotedTweetData.attachments?.media_keys?.compactMap { key in
-                    tweetResponse.includes?.media?.first { $0.media_key == key }
-                } ?? []
-                quotedTweetInfo = QuotedTweetInfo(
-                    author: quotedAuthor,
-                    text: quotedTweetData.text,
-                    media: quotedMedia
-                )
-                // Remove t.co link from display tweet text
-                displayTweet = XTweet(
-                    id: displayTweet.id,
-                    text: removeTCoLink(from: displayTweet.text),
-                    author_id: displayTweet.author_id,
-                    created_at: displayTweet.created_at,
-                    attachments: displayTweet.attachments,
-                    public_metrics: displayTweet.public_metrics,
-                    referenced_tweets: displayTweet.referenced_tweets
-                )
-            }
-
-            addConversationItem(.tweet(displayTweet, author: author, media: media, retweeter: retweeter, retweetId: retweetId, quotedTweet: quotedTweetInfo))
+            let enrichedTweet = EnrichedTweet(from: tweet, includes: tweetResponse.includes)
+            addConversationItem(.tweet(enrichedTweet))
         }
     }
 

@@ -35,13 +35,11 @@ enum ToolResponseContent: Codable {
                 switch tool {
                 case .searchRecentTweets, .getTweets:
                     // X API usually wraps lists in "data"
-                    struct TweetResponse: Codable { let data: [XTweet] }
-                    let response = try decoder.decode(TweetResponse.self, from: data)
-                    return .tweets(response.data)
+                    let response = try decoder.decode(XTweetResponse.self, from: data)
+                    return .tweets(response.data ?? [])
 
                 case .createTweet, .replyToTweet, .quoteTweet, .createPollTweet:
-                    struct CreateTweetResponse: Codable { let data: XTweet }
-                    let response = try decoder.decode(CreateTweetResponse.self, from: data)
+                    let response = try decoder.decode(XSingleTweetResponse.self, from: data)
                     return .tweets([response.data])
 
                 case .getUserByUsername, .getUserById:

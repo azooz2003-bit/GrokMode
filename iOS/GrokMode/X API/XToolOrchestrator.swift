@@ -73,7 +73,8 @@ actor XToolOrchestrator {
 
             if httpResponse.statusCode >= 200 && httpResponse.statusCode < 300 {
                 let responseString = String(data: data, encoding: .utf8)
-                return .success(id: id, toolName: tool.name, response: responseString, statusCode: httpResponse.statusCode)
+                let enrichedResponse = enrichResponseWithPagination(responseString, toolName: tool.name)
+                return .success(id: id, toolName: tool.name, response: enrichedResponse, statusCode: httpResponse.statusCode)
             } else if httpResponse.statusCode == 401 {
                 // 401 = unauthorized (permissions issue or other API error)
                 // Note: Token refresh is already handled by getValidAccessToken()
@@ -738,5 +739,61 @@ actor XToolOrchestrator {
         }
 
         return request
+    }
+
+    // MARK: - Response Enrichment
+
+    /// Enriches successful API responses with pagination information for the agent
+    private func enrichResponseWithPagination(_ responseString: String?, toolName: String) -> String? {
+        guard let responseString = responseString,
+              let data = responseString.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let meta = json["meta"] as? [String: Any],
+              let nextToken = meta["next_token"] as? String else {
+            return responseString
+        }
+
+        // Create enriched response with pagination guidance
+        var enrichedJson = json
+        var enrichedMeta = meta
+
+        let resultCount = meta["result_count"] as? Int
+        let countInfo = resultCount.map { "\($0) results returned. " } ?? ""
+
+        enrichedMeta["pagination_info"] = """
+        \(countInfo)More results are available.
+
+        IMPORTANT GUIDELINES:
+        1. After reading these results to the user, ask if they would like to see more (e.g., "Would you like me to show you more?" or "Should I fetch additional results?").
+
+        2. ONLY fetch additional pages if the user explicitly requests it (e.g., "show me more", "continue", "next", "keep going", "yes show more").
+
+        3. NEVER automatically fetch multiple pages without user confirmation for each page.
+
+        4. If you have already fetched 3 or more pages in this conversation, warn the user that you're retrieving a lot of data and ask if they want to continue.
+
+        EXCEPTION - Batch Fetching for "ALL" Requests:
+        If the user explicitly requests ALL results (e.g., "give me ALL my DMs with Allen", "show me EVERY tweet I liked", "get my COMPLETE timeline"), you may automatically fetch multiple pages WITHOUT asking for confirmation each time, BUT:
+        - ONLY for finite, scoped queries (specific conversation DMs, specific user's content, user's own bookmarks, etc.)
+        - NEVER for unbounded searches (e.g., "all tweets about AI", general searches, trending topics)
+        - Maximum 10 pages total - stop after 10 pages and inform the user
+        - Inform the user you're fetching multiple pages (e.g., "I'll fetch all your DMs with Allen, this may take a moment...")
+        - After completion, summarize total results retrieved (e.g., "I retrieved 87 messages across 4 pages")
+
+        To fetch the next page, call \(toolName) again with the SAME parameters as before, but include:
+        pagination_token: "\(nextToken)"
+
+        You can adjust max_results to control how many items per page (fewer items = faster responses).
+        """
+
+        enrichedJson["meta"] = enrichedMeta
+
+        // Convert back to JSON string
+        if let enrichedData = try? JSONSerialization.data(withJSONObject: enrichedJson, options: [.prettyPrinted]),
+           let enrichedString = String(data: enrichedData, encoding: .utf8) {
+            return enrichedString
+        }
+
+        return responseString
     }
 }

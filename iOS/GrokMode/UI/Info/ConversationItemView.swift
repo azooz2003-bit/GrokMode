@@ -20,8 +20,8 @@ struct ConversationItemView: View {
             case .assistantSpeech(let text):
                 AssistantSpeechBubble(text: text, timestamp: item.timestamp)
 
-            case .tweet(let tweet, let author, let media, let retweeter, let retweetId, let quotedTweet):
-                TweetConversationCard(tweet: tweet, author: author, media: media, retweeter: retweeter, retweetId: retweetId, quotedTweet: quotedTweet)
+            case .tweet(let enrichedTweet):
+                TweetConversationCard(enrichedTweet: enrichedTweet)
 
             case .toolCall(let name, let status):
                 ToolCallIndicator(toolName: name, status: status, timestamp: item.timestamp)
@@ -101,23 +101,18 @@ struct AssistantSpeechBubble: View {
 }
 
 struct TweetConversationCard: View {
-    let tweet: XTweet
-    let author: XUser?
-    let media: [XMedia]
-    let retweeter: XUser?
-    let retweetId: String?
-    let quotedTweet: QuotedTweetInfo?
+    let enrichedTweet: EnrichedTweet
 
     var body: some View {
         PrimaryContentBlock(
-            profileImageUrl: author?.profile_image_url,
-            displayName: author?.name ?? "Unknown",
-            username: author?.username ?? "unknown",
-            text: tweet.text,
-            media: media.isEmpty ? nil : media,
+            profileImageUrl: enrichedTweet.author?.profile_image_url,
+            displayName: enrichedTweet.author?.name ?? "Unknown",
+            username: enrichedTweet.author?.username ?? "unknown",
+            text: enrichedTweet.displayText,
+            media: enrichedTweet.media.isEmpty ? nil : enrichedTweet.media,
             metrics: tweetMetrics,
             tweetUrl: tweetUrl,
-            retweeterName: retweeter?.name,
+            retweeterName: enrichedTweet.retweetInfo?.retweeter.name,
             quotedTweet: quotedTweetData
         )
         .listRowSeparator(.hidden)
@@ -125,7 +120,7 @@ struct TweetConversationCard: View {
     }
 
     private var quotedTweetData: PrimaryContentBlock.QuotedTweetData? {
-        guard let quotedTweet = quotedTweet else { return nil }
+        guard let quotedTweet = enrichedTweet.quotedTweet else { return nil }
         return PrimaryContentBlock.QuotedTweetData(
             authorName: quotedTweet.author.name,
             authorUsername: quotedTweet.author.username,
@@ -137,15 +132,15 @@ struct TweetConversationCard: View {
     private var tweetMetrics: TweetMetrics? {
         #if DEBUG
         AppLogger.ui.debug("===== UI: RENDERING TWEET =====")
-        AppLogger.ui.debug("Tweet ID: \(tweet.id)")
-        AppLogger.ui.debug("Tweet Text: \(String(tweet.text.prefix(50)))...")
-        AppLogger.ui.debug("Author: \(author?.username ?? "nil")")
-        AppLogger.ui.debug("Profile Image URL: \(author?.profile_image_url ?? "NIL")")
-        AppLogger.ui.debug("Media URLs: \(media.count)")
-        AppLogger.ui.debug("Public Metrics Object: \(tweet.public_metrics != nil ? "EXISTS" : "NIL")")
+        AppLogger.ui.debug("Tweet ID: \(enrichedTweet.tweet.id)")
+        AppLogger.ui.debug("Tweet Text: \(String(enrichedTweet.displayText.prefix(50)))...")
+        AppLogger.ui.debug("Author: \(enrichedTweet.author?.username ?? "nil")")
+        AppLogger.ui.debug("Profile Image URL: \(enrichedTweet.author?.profile_image_url ?? "NIL")")
+        AppLogger.ui.debug("Media URLs: \(enrichedTweet.media.count)")
+        AppLogger.ui.debug("Public Metrics Object: \(enrichedTweet.tweet.public_metrics != nil ? "EXISTS" : "NIL")")
         #endif
 
-        guard let publicMetrics = tweet.public_metrics else {
+        guard let publicMetrics = enrichedTweet.tweet.public_metrics else {
             #if DEBUG
             AppLogger.ui.debug("✗ NO METRICS - Will not display engagement stats")
             #endif
@@ -170,8 +165,8 @@ struct TweetConversationCard: View {
 
     private var tweetUrl: String? {
         // For retweets, use retweeter's username and retweet ID
-        if let retweetId = retweetId, let retweeterUsername = retweeter?.username {
-            let url = "https://twitter.com/\(retweeterUsername)/status/\(retweetId)"
+        if let retweetInfo = enrichedTweet.retweetInfo {
+            let url = "https://twitter.com/\(retweetInfo.retweeter.username)/status/\(retweetInfo.retweetId)"
             #if DEBUG
             AppLogger.ui.debug("✓ Retweet URL: \(url)")
             #endif
@@ -179,13 +174,13 @@ struct TweetConversationCard: View {
         }
 
         // For regular tweets, use author's username and tweet ID
-        guard let username = author?.username else {
+        guard let username = enrichedTweet.author?.username else {
             #if DEBUG
             AppLogger.ui.debug("✗ Cannot create URL - no author username")
             #endif
             return nil
         }
-        let url = "https://twitter.com/\(username)/status/\(tweet.id)"
+        let url = "https://twitter.com/\(username)/status/\(enrichedTweet.tweet.id)"
         #if DEBUG
         AppLogger.ui.debug("✓ Tweet URL: \(url)")
         #endif
@@ -321,27 +316,29 @@ struct SystemMessageBubble: View {
         ConversationItemView(item: ConversationItem(
             timestamp: Date(),
             type: .tweet(
-                XTweet(
-                    id: "1",
-                    text: "This is a test tweet",
-                    author_id: "1",
-                    created_at: nil,
-                    attachments: nil,
-                    public_metrics: XTweet.PublicMetrics(
-                        retweet_count: 100,
-                        reply_count: 50,
-                        like_count: 500,
-                        quote_count: 20,
-                        impression_count: 10000,
-                        bookmark_count: 30
+                EnrichedTweet(
+                    from: XTweet(
+                        id: "1",
+                        text: "This is a test tweet https://t.co/abc123",
+                        author_id: "1",
+                        created_at: nil,
+                        attachments: nil,
+                        public_metrics: XTweet.PublicMetrics(
+                            retweet_count: 100,
+                            reply_count: 50,
+                            like_count: 500,
+                            quote_count: 20,
+                            impression_count: 10000,
+                            bookmark_count: 30
+                        ),
+                        referenced_tweets: nil
                     ),
-                    referenced_tweets: nil
-                ),
-                author: XUser(id: "1", name: "Test User", username: "testuser", profile_image_url: nil),
-                media: [],
-                retweeter: nil,
-                retweetId: nil,
-                quotedTweet: nil
+                    includes: XTweetResponse.Includes(
+                        users: [XUser(id: "1", name: "Test User", username: "testuser", profile_image_url: nil)],
+                        media: nil,
+                        tweets: nil
+                    )
+                )
             )
         ))
     }

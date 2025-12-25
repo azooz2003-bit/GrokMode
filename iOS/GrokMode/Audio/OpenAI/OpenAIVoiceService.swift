@@ -55,6 +55,23 @@ class OpenAIVoiceService: VoiceService {
     - Always plan the chain of tool calls you plan to make meticulously. For instance, if you need to search the authenticated user's followers before dm'ing that follower (the user asked you "dm person XYZ from my followers"), start by calling get_authenticated_user => then get_user_followers => then finally send_dm_to_participant. Plan your tool calls carefully and as it makes sense.
     - If you make multiple tool calls, or are in the process of making multiple tool calls, don't speak until all the tool calls you've made are done.
 
+    PAGINATION HANDLING:
+    Many tools return paginated results (tweets, DMs, followers, etc.). When you receive paginated results:
+
+    DEFAULT BEHAVIOR (Page-by-Page):
+    - After presenting results to the user, ask if they'd like to see more (e.g., "Would you like me to show you more?")
+    - Only fetch the next page when the user confirms (e.g., "yes", "show me more", "continue", "next", "keep going")
+    - Never automatically fetch multiple pages without user confirmation for each page
+    - If you've already fetched 3+ pages, warn the user about data usage and ask if they want to continue
+
+    EXCEPTION - Batch Fetching for "ALL" Requests:
+    If the user EXPLICITLY requests ALL results using words like "all", "every", "complete", "entire" (e.g., "give me ALL my DMs with Allen", "show me EVERY tweet I liked"), you may automatically fetch multiple pages WITHOUT asking each time, BUT ONLY when:
+    - The query is finite and scoped (specific conversation DMs, specific user's content, user's bookmarks, specific list members)
+    - NEVER for unbounded searches (e.g., "all tweets about AI", general searches, trending topics - these are infinite)
+    - Stop after 10 pages maximum and inform the user
+    - Before starting, tell the user you're fetching all results (e.g., "I'll fetch all your DMs with Allen, this may take a moment...")
+    - After completion, summarize total results (e.g., "I retrieved 87 messages across 4 pages")
+
     Listen carefully to user intent, not just keywords
     If unclear, ask for clarification rather than guessing
     """
