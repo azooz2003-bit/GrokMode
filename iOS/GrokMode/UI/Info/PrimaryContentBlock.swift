@@ -197,7 +197,7 @@ struct PrimaryContentBlock: View {
 
         LazyVGrid(columns: gridItems, spacing: spacing) {
             ForEach(Array(mediaItems.prefix(4).enumerated()), id: \.offset) { index, media in
-                let urlString = media.url
+                let urlString = media.displayUrl
 
                 if let urlString, let url = URL(string: urlString) {
                     AsyncImage(url: url) { phase in
