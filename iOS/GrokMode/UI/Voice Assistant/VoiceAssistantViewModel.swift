@@ -515,6 +515,17 @@ class VoiceAssistantViewModel: NSObject {
         addConversationItem(.systemMessage(message))
     }
 
+    private func removeTCoLink(from text: String) -> String {
+        // Remove t.co links that Twitter adds for quoted tweets
+        // Pattern matches https://t.co/xxxxx (usually at the end of the text)
+        let pattern = #"\s*https://t\.co/\w+\s*$"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else {
+            return text
+        }
+        let range = NSRange(text.startIndex..., in: text)
+        return regex.stringByReplacingMatches(in: text, range: range, withTemplate: "").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     private func parseTweetsFromResponse(_ response: String, toolName: String) {
         struct TweetResponse: Codable {
             let data: [XTweet]?
@@ -541,25 +552,52 @@ class VoiceAssistantViewModel: NSObject {
         }
 
         tweets.forEach { tweet in
-            // Check if this is a retweet
+            // Determine which tweet to display (original if retweet, else the tweet itself)
+            var displayTweet = tweet
+            var retweeter: XUser? = nil
+            var retweetId: String? = nil
+
             if tweet.isRetweet,
                let retweetedId = tweet.retweetedTweetId,
                let originalTweet = tweetResponse.includes?.tweets?.first(where: { $0.id == retweetedId }) {
-                // This is a retweet - show original tweet's content, but use retweet ID for URL
-                let retweeter = tweetResponse.includes?.users?.first { $0.id == tweet.author_id }
-                let author = tweetResponse.includes?.users?.first { $0.id == originalTweet.author_id }
-                let media = originalTweet.attachments?.media_keys?.compactMap { key in
-                    tweetResponse.includes?.media?.first { $0.media_key == key }
-                } ?? []
-                addConversationItem(.tweet(originalTweet, author: author, media: media, retweeter: retweeter, retweetId: tweet.id))
-            } else {
-                // Regular tweet or quote tweet
-                let author = tweetResponse.includes?.users?.first { $0.id == tweet.author_id }
-                let media = tweet.attachments?.media_keys?.compactMap { key in
-                    tweetResponse.includes?.media?.first { $0.media_key == key }
-                } ?? []
-                addConversationItem(.tweet(tweet, author: author, media: media, retweeter: nil, retweetId: nil))
+                displayTweet = originalTweet
+                retweeter = tweetResponse.includes?.users?.first { $0.id == tweet.author_id }
+                retweetId = tweet.id
             }
+
+            // Get author and media for the display tweet
+            let author = tweetResponse.includes?.users?.first { $0.id == displayTweet.author_id }
+            let media = displayTweet.attachments?.media_keys?.compactMap { key in
+                tweetResponse.includes?.media?.first { $0.media_key == key }
+            } ?? []
+
+            // Check if display tweet has a quoted tweet
+            var quotedTweetInfo: QuotedTweetInfo? = nil
+            if displayTweet.isQuoteTweet,
+               let quotedId = displayTweet.quotedTweetId,
+               let quotedTweetData = tweetResponse.includes?.tweets?.first(where: { $0.id == quotedId }),
+               let quotedAuthor = tweetResponse.includes?.users?.first(where: { $0.id == quotedTweetData.author_id }) {
+                let quotedMedia = quotedTweetData.attachments?.media_keys?.compactMap { key in
+                    tweetResponse.includes?.media?.first { $0.media_key == key }
+                } ?? []
+                quotedTweetInfo = QuotedTweetInfo(
+                    author: quotedAuthor,
+                    text: quotedTweetData.text,
+                    media: quotedMedia
+                )
+                // Remove t.co link from display tweet text
+                displayTweet = XTweet(
+                    id: displayTweet.id,
+                    text: removeTCoLink(from: displayTweet.text),
+                    author_id: displayTweet.author_id,
+                    created_at: displayTweet.created_at,
+                    attachments: displayTweet.attachments,
+                    public_metrics: displayTweet.public_metrics,
+                    referenced_tweets: displayTweet.referenced_tweets
+                )
+            }
+
+            addConversationItem(.tweet(displayTweet, author: author, media: media, retweeter: retweeter, retweetId: retweetId, quotedTweet: quotedTweetInfo))
         }
     }
 

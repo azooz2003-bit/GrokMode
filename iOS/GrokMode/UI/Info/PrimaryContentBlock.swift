@@ -24,6 +24,14 @@ struct PrimaryContentBlock: View {
     let metrics: TweetMetrics?  // Engagement metrics
     let tweetUrl: String?  // Deep link URL
     let retweeterName: String?  // Name of person who retweeted (if this is a retweet)
+    let quotedTweet: QuotedTweetData?  // Quoted tweet data (if this is a quote tweet)
+
+    struct QuotedTweetData {
+        let authorName: String
+        let authorUsername: String
+        let text: String
+        let media: [XMedia]?
+    }
 
     var body: some View {
         VStack(alignment: .center, spacing: 12) {
@@ -72,6 +80,16 @@ struct PrimaryContentBlock: View {
             if let media = media, !media.isEmpty {
                 mediaGrid(mediaItems: media)
                     .frame(maxWidth: .infinity)
+            }
+
+            // Quoted tweet (if this is a quote tweet)
+            if let quotedTweet = quotedTweet {
+                CompactQuotedTweetView(
+                    authorName: quotedTweet.authorName,
+                    authorUsername: quotedTweet.authorUsername,
+                    text: quotedTweet.text,
+                    media: quotedTweet.media
+                )
             }
 
             bottomInfo()
@@ -274,6 +292,68 @@ struct PrimaryContentBlock: View {
     }
 }
 
+// MARK: - Compact Quoted Tweet View
+
+struct CompactQuotedTweetView: View {
+    let authorName: String
+    let authorUsername: String
+    let text: String
+    let media: [XMedia]?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            // Author info
+            HStack(spacing: 4) {
+                Text(authorName)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.primary)
+                Text("@\(authorUsername)")
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
+            }
+
+            // Tweet text
+            Text(text)
+                .font(.system(size: 14))
+                .foregroundColor(.primary)
+                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
+
+            // Media preview (if exists) - show first image only
+            if let media = media, let firstMedia = media.first, let urlString = firstMedia.displayUrl, let url = URL(string: urlString) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(maxWidth: .infinity, maxHeight: 120)
+                            .clipped()
+                            .cornerRadius(8)
+                    case .empty:
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.gray.opacity(0.2))
+                            .frame(maxWidth: .infinity, maxHeight: 120)
+                            .overlay { ProgressView() }
+                    case .failure:
+                        EmptyView()
+                    @unknown default:
+                        EmptyView()
+                    }
+                }
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.gray.opacity(0.1))
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+        )
+    }
+}
+
 #Preview("Default States") {
     ZStack {
         Color(.systemBackground).ignoresSafeArea()
@@ -289,7 +369,8 @@ struct PrimaryContentBlock: View {
                     media: nil,
                     metrics: TweetMetrics(likes: 12500, retweets: 3400, views: 150000),
                     tweetUrl: "https://twitter.com/elonmusk/status/1234567890",
-                    retweeterName: nil
+                    retweeterName: nil,
+                    quotedTweet: nil
                 )
 
 
@@ -301,7 +382,8 @@ struct PrimaryContentBlock: View {
                     media: nil,
                     metrics: TweetMetrics(likes: 12500, retweets: 3400, views: 150000),
                     tweetUrl: "https://twitter.com/elonmusk/status/1234567890",
-                    retweeterName: "John Doe"
+                    retweeterName: "John Doe",
+                    quotedTweet: nil
                 )
 
 
@@ -315,7 +397,8 @@ struct PrimaryContentBlock: View {
                     media: nil,
                     metrics: TweetMetrics(likes: 12500, retweets: 3400, views: 150000),
                     tweetUrl: "https://twitter.com/elonmusk/status/1234567890",
-                    retweeterName: nil
+                    retweeterName: nil,
+                    quotedTweet: nil
                 )
 
 
@@ -363,7 +446,8 @@ struct PrimaryContentBlock: View {
                     ],
                     metrics: TweetMetrics(likes: 5400, retweets: 1200, views: 45000),
                     tweetUrl: "https://twitter.com/technews/status/1234567891",
-                    retweeterName: nil
+                    retweeterName: nil,
+                    quotedTweet: nil
                 )
             }
             .padding(.vertical)
@@ -418,7 +502,8 @@ struct PrimaryContentBlock: View {
                     ],
                     metrics: TweetMetrics(likes: 8900, retweets: 2100, views: 67000),
                     tweetUrl: "https://twitter.com/photoexample/status/1234567892",
-                    retweeterName: nil
+                    retweeterName: nil,
+                    quotedTweet: nil
                 )
 
                 // Single image failure
@@ -439,7 +524,8 @@ struct PrimaryContentBlock: View {
                     ],
                     metrics: TweetMetrics(likes: 3200, retweets: 450, views: 28000),
                     tweetUrl: "https://twitter.com/digitalartist/status/1234567893",
-                    retweeterName: nil
+                    retweeterName: nil,
+                    quotedTweet: nil
                 )
             }
             .padding(.vertical)
@@ -494,7 +580,8 @@ struct PrimaryContentBlock: View {
                     ],
                     metrics: TweetMetrics(likes: 15600, retweets: 4200, views: 125000),
                     tweetUrl: "https://twitter.com/sampleuser/status/1234567894",
-                    retweeterName: nil
+                    retweeterName: nil,
+                    quotedTweet: nil
                 )
             }
             .padding(.vertical)

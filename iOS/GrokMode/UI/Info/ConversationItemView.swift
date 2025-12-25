@@ -20,8 +20,8 @@ struct ConversationItemView: View {
             case .assistantSpeech(let text):
                 AssistantSpeechBubble(text: text, timestamp: item.timestamp)
 
-            case .tweet(let tweet, let author, let media, let retweeter, let retweetId):
-                TweetConversationCard(tweet: tweet, author: author, media: media, retweeter: retweeter, retweetId: retweetId)
+            case .tweet(let tweet, let author, let media, let retweeter, let retweetId, let quotedTweet):
+                TweetConversationCard(tweet: tweet, author: author, media: media, retweeter: retweeter, retweetId: retweetId, quotedTweet: quotedTweet)
 
             case .toolCall(let name, let status):
                 ToolCallIndicator(toolName: name, status: status, timestamp: item.timestamp)
@@ -106,6 +106,7 @@ struct TweetConversationCard: View {
     let media: [XMedia]
     let retweeter: XUser?
     let retweetId: String?
+    let quotedTweet: QuotedTweetInfo?
 
     var body: some View {
         PrimaryContentBlock(
@@ -116,10 +117,21 @@ struct TweetConversationCard: View {
             media: media.isEmpty ? nil : media,
             metrics: tweetMetrics,
             tweetUrl: tweetUrl,
-            retweeterName: retweeter?.name
+            retweeterName: retweeter?.name,
+            quotedTweet: quotedTweetData
         )
         .listRowSeparator(.hidden)
         .padding(.vertical, 4)
+    }
+
+    private var quotedTweetData: PrimaryContentBlock.QuotedTweetData? {
+        guard let quotedTweet = quotedTweet else { return nil }
+        return PrimaryContentBlock.QuotedTweetData(
+            authorName: quotedTweet.author.name,
+            authorUsername: quotedTweet.author.username,
+            text: quotedTweet.text,
+            media: quotedTweet.media.isEmpty ? nil : quotedTweet.media
+        )
     }
 
     private var tweetMetrics: TweetMetrics? {
@@ -328,7 +340,8 @@ struct SystemMessageBubble: View {
                 author: XUser(id: "1", name: "Test User", username: "testuser", profile_image_url: nil),
                 media: [],
                 retweeter: nil,
-                retweetId: nil
+                retweetId: nil,
+                quotedTweet: nil
             )
         ))
     }

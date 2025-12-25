@@ -41,4 +41,14 @@ struct XTweet: Codable, Identifiable, Sendable {
     var retweetedTweetId: String? {
         referenced_tweets?.first { $0.type == "retweeted" }?.id
     }
+
+    // Helper to check if this is a quote tweet
+    var isQuoteTweet: Bool {
+        referenced_tweets?.contains { $0.type == "quoted" } ?? false
+    }
+
+    // Get the ID of the quoted tweet
+    var quotedTweetId: String? {
+        referenced_tweets?.first { $0.type == "quoted" }?.id
+    }
 }
