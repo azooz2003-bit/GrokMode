@@ -14,19 +14,19 @@ enum VoiceServiceType: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    /// Display name for the service
+    /// Display name for the service (model name)
     var displayName: String {
-        rawValue
-    }
-
-    /// Assistant name shown to users
-    var assistantName: String {
         switch self {
         case .xai:
             return "Grok"
         case .openai:
             return "GPT-Realtime"
         }
+    }
+
+    /// Assistant name shown to users (same as display name)
+    var assistantName: String {
+        displayName
     }
 
     /// Icon name for the service

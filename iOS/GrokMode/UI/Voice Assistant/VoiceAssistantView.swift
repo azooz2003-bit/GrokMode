@@ -265,7 +265,7 @@ struct VoiceAssistantView: View {
                 .frame(width: 8, height: 8)
 
             }
-            .frame(minWidth: 130) // To get around iOS image cropping glitch
+            .frame(minWidth: 165) // To get around iOS image cropping glitch
             .bold()
         }
     }
