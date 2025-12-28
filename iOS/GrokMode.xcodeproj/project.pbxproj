@@ -8,7 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		64D5DF3B2EE5802900800961 /* JSONSchema in Frameworks */ = {isa = PBXBuildFile; productRef = 64D5DF3A2EE5802900800961 /* JSONSchema */; };
-		9FBA97592EF3C09100D62E99 /* Secrets.xcconfig in Sources */ = {isa = PBXBuildFile; fileRef = 9FBA97582EF3C08900D62E99 /* Secrets.xcconfig */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -260,7 +259,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				9FBA97592EF3C09100D62E99 /* Secrets.xcconfig in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
