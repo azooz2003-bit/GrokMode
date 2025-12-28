@@ -51,7 +51,6 @@ public actor XAuthService {
         }
     }
 
-    // Convenience accessors
     var isAuthenticated: Bool { authState.isAuthenticated }
     var currentUserHandle: String? { authState.currentUserHandle }
 
@@ -62,12 +61,10 @@ public actor XAuthService {
     // PKCE Components
     private var codeVerifier: String?
 
-    // Config
     private var clientId: String {
         return Bundle.main.infoDictionary?["X_CLIENT_ID"] as? String ?? ""
     }
 
-    // Storage
     private let keychain = KeychainHelper()
     private let tokenKey = "x_user_access_token"
     private let refreshTokenKey = "x_user_refresh_token"
@@ -79,11 +76,9 @@ public actor XAuthService {
     /// URL to get new access token using existing refesh token
     private let refreshURL: URL = Config.baseXProxyURL.appending(path: "oauth2/refresh")
 
-    // AsyncStream for state changes
     private let stateContinuation: AsyncStream<AuthState>.Continuation
     let authStateStream: AsyncStream<AuthState>
 
-    // Optional event handlers
     var onTokenRefreshed: (() -> Void)?
 
     init(authPresentationProvider: AuthPresentationProvider) {

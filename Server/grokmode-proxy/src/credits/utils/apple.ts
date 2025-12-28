@@ -1,5 +1,3 @@
-// Apple transaction utilities
-
 import { AppleTransaction } from '../types';
 
 /**

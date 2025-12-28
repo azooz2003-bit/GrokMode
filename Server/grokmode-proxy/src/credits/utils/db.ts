@@ -1,5 +1,3 @@
-// Database query utilities
-
 import { CreditBalance } from '../types';
 
 interface Env {
@@ -10,14 +8,12 @@ interface Env {
  * Get remaining credits for a user
  */
 export async function getRemainingCredits(userId: string, env: Env): Promise<CreditBalance> {
-	// Get total spent
 	const userResult = await env.tweety_credits.prepare(
 		'SELECT credits_spent FROM users WHERE user_id = ?'
 	).bind(userId).first<{ credits_spent: number }>();
 
 	const creditsSpent = userResult?.credits_spent || 0;
 
-	// Get total purchased (all receipts for this user)
 	const receiptsResult = await env.tweety_credits.prepare(
 		'SELECT SUM(credits_amount) as total_credits FROM receipts WHERE user_id = ?'
 	).bind(userId).first<{ total_credits: number }>();

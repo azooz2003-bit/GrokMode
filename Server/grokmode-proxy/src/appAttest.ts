@@ -309,7 +309,6 @@ async function verifySignature(
 }
 
 function extractCounter(authData: Uint8Array): number {
-    // Extract signature counter from authenticator data
     // Counter is at bytes 33-36 (big-endian)
     if (authData.length < 37) return 0;
 

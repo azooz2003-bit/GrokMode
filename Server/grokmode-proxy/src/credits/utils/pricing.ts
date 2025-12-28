@@ -1,5 +1,3 @@
-// Pricing configuration and cost calculation
-
 import { UsageData } from '../types';
 
 // Pricing constants (matches iOS PricingConfig.swift)
@@ -69,22 +67,17 @@ export function calculateCost(service: string, usage: UsageData): number {
  * @returns Credits amount in USD
  */
 export function getCreditsForProduct(productId: string, isTrial: boolean): number {
-	// No credits for trial periods
 	if (isTrial) {
 		return 0;
 	}
 
-	// Map product IDs to credit amounts
 	switch (productId) {
-		case 'com.grokmode.plus':
 		case 'co.azizalbahar.TweetyXVoiceAssistant.plus':
 			return 11.00;  // $11 in credits
 
-		case 'com.grokmode.pro':
 		case 'co.azizalbahar.TweetyXVoiceAssistant.pro':
 			return 20.00;  // $20 in credits
 
-		case 'com.grokmode.ultra':
 		case 'co.azizalbahar.TweetyXVoiceAssistant.ultra':
 			return 40.00;  // $40 in credits
 

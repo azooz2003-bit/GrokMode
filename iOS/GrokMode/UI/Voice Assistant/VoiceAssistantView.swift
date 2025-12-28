@@ -92,10 +92,8 @@ struct VoiceAssistantView: View {
                 hapticGenerator.prepare() // Prepare haptic generator for reduced latency
             }
             .onChange(of: viewModel.currentAudioLevel) { oldValue, newValue in
-                // Update waveform based on real audio level
                 animator.updateAudioLevel(CGFloat(newValue))
 
-                // Update animation state based on audio activity
                 withAnimation {
                     isAnimating = newValue > 0.1 // Consider animating if level is above threshold
                 }

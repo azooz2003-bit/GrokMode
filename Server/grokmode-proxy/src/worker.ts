@@ -14,7 +14,6 @@ export interface Env {
     tweety_credits: D1Database;
 }
 
-// Request body types
 interface TokenExchangeRequest {
     code: string;
     redirect_uri: string;
@@ -136,10 +135,8 @@ fetch('https://api.x.ai/v1/realtime/client_secrets', {
         // Get ephemeral token for OpenAI Realtime API
         if (url.pathname === '/openai/v1/realtime/client_secrets') {
             try {
-                // Parse the request body from iOS client
                 const requestBody = await request.json();
 
-                // Forward to OpenAI with the API key
                 const response = await fetch('https://api.openai.com/v1/realtime/client_secrets', {
                     method: 'POST',
                     headers: {
@@ -151,7 +148,6 @@ fetch('https://api.x.ai/v1/realtime/client_secrets', {
 
                 const responseData = await response.text();
 
-                // If OpenAI returned an error, pass it through
                 if (!response.ok) {
                     return new Response(responseData, {
                         status: response.status,
@@ -175,7 +171,6 @@ fetch('https://api.x.ai/v1/realtime/client_secrets', {
             try {
                 const { code, redirect_uri, code_verifier } = await request.json() as TokenExchangeRequest;
 
-                // Validate environment variables
                 if (!env.X_OAUTH2_CLIENT_ID || !env.X_OAUTH2_CLIENT_SECRET) {
                     return new Response(JSON.stringify({
                         error: 'Server configuration error: OAuth credentials not set'
@@ -198,7 +193,6 @@ fetch('https://api.x.ai/v1/realtime/client_secrets', {
 
                 const responseData = await response.text();
 
-                // If X API returned an error, pass it through
                 if (!response.ok) {
                     return new Response(responseData, {
                         status: response.status,
@@ -222,7 +216,6 @@ fetch('https://api.x.ai/v1/realtime/client_secrets', {
             try {
                 const { refresh_token } = await request.json() as TokenRefreshRequest;
 
-                // Validate environment variables
                 if (!env.X_OAUTH2_CLIENT_ID || !env.X_OAUTH2_CLIENT_SECRET) {
                     return new Response(JSON.stringify({
                         error: 'Server configuration error: OAuth credentials not set'
@@ -243,7 +236,6 @@ fetch('https://api.x.ai/v1/realtime/client_secrets', {
 
                 const responseData = await response.text();
 
-                // If X API returned an error, pass it through
                 if (!response.ok) {
                     return new Response(responseData, {
                         status: response.status,

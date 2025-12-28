@@ -31,20 +31,17 @@ class UsageTracker {
 
     // MARK: - Tracking Methods
 
-    /// Track a complete Grok voice minute
     func trackGrokVoiceMinute() {
         grokVoiceUsage.totalMinutes += 1.0
         saveUsage()
     }
 
-    /// Track partial Grok voice usage (for remaining seconds at session end)
     func trackGrokVoicePartialMinute(seconds: TimeInterval) {
         let minutes = seconds / 60.0
         grokVoiceUsage.totalMinutes += minutes
         saveUsage()
     }
 
-    /// Track OpenAI Realtime API usage
     func trackOpenAIUsage(
         audioInputTokens: Int = 0,
         audioOutputTokens: Int = 0,
@@ -60,7 +57,6 @@ class UsageTracker {
         saveUsage()
     }
 
-    /// Track X API usage by operation type
     func trackXAPIUsage(operation: XAPIOperation, count: Int = 1) {
         switch operation {
         case .postRead:
@@ -79,7 +75,6 @@ class UsageTracker {
         saveUsage()
     }
 
-    /// Reset all usage data
     func resetUsage() {
         grokVoiceUsage = GrokVoiceUsage()
         openAIUsage = OpenAIUsage()

@@ -53,11 +53,6 @@
 			path = GrokMode;
 			sourceTree = "<group>";
 		};
-		A34575892EE5109800E6576A /* GrokModeTests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = GrokModeTests;
-			sourceTree = "<group>";
-		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -97,7 +92,6 @@
 			isa = PBXGroup;
 			children = (
 				A345757B2EE5109700E6576A /* GrokMode */,
-				A34575892EE5109800E6576A /* GrokModeTests */,
 				A337057B2EE7CCB000E9505F /* Frameworks */,
 				A345757A2EE5109700E6576A /* Products */,
 				9FBA97582EF3C08900D62E99 /* Secrets.xcconfig */,
@@ -153,9 +147,6 @@
 			dependencies = (
 				A34575882EE5109800E6576A /* PBXTargetDependency */,
 			);
-			fileSystemSynchronizedGroups = (
-				A34575892EE5109800E6576A /* GrokModeTests */,
-			);
 			name = GrokModeTests;
 			packageProductDependencies = (
 			);
@@ -191,7 +182,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 2610;
-				LastUpgradeCheck = 2610;
+				LastUpgradeCheck = 2620;
 				TargetAttributes = {
 					A34575782EE5109700E6576A = {
 						CreatedOnToolsVersion = 26.1.1;
@@ -352,6 +343,7 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -410,6 +402,7 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				VALIDATE_PRODUCT = YES;
 			};

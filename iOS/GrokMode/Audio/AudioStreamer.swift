@@ -38,7 +38,6 @@ class AudioStreamer: NSObject {
 
     private var hasTapInstalled = false
 
-    // Speech-based VAD for accurate speech detection
     private let speechVAD: SpeechVAD
 
     /// Tracks if user is currently speaking (linked to Speech VAD)

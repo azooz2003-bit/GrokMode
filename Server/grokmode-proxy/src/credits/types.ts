@@ -1,5 +1,3 @@
-// Type definitions for credit tracking system
-
 export interface AppleTransaction {
 	app_account_token: string;  // UUID that acts as user_id
 	transaction_id: string;

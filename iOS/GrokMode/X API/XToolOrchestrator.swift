@@ -27,7 +27,6 @@ actor XToolOrchestrator {
     /// - OAuth 2.0 User Context: For user actions and private data access
     /// - App-only Bearer Token: For public data lookups
     private func getBearerToken(for tool: XTool) async throws -> String? {
-        // Use user OAuth token for endpoints that require user context
         guard let userToken = await authService.getValidAccessToken() else {
             throw XToolCallError(
                 code: "AUTH_REQUIRED",

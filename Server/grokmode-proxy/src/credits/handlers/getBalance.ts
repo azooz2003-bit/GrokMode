@@ -1,5 +1,3 @@
-// Handler for getting user's credit balance
-
 import { getRemainingCredits } from '../utils/db';
 
 interface Env {

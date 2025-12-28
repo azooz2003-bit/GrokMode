@@ -1,5 +1,3 @@
-// Handler for syncing batch of transactions from iOS
-
 import { AppleTransaction } from '../types';
 import { getCreditsForProduct } from '../utils/pricing';
 import {
@@ -42,19 +40,15 @@ export async function syncTransactions(request: Request, env: Env): Promise<Resp
 			);
 		}
 
-		// Create user if doesn't exist
 		await createUserIfNotExists(userId, env);
 
-		// Process each transaction
 		let newCreditsAdded = 0;
 		let processedCount = 0;
 		let skippedCount = 0;
 
-		// Build batch of inserts for new transactions (single atomic operation per user)
 		const insertStatements = [];
 
 		for (const transaction of transactions) {
-			// Check if already processed
 			const alreadyProcessed = await isTransactionProcessed(
 				transaction.transaction_id,
 				env
@@ -65,11 +59,9 @@ export async function syncTransactions(request: Request, env: Env): Promise<Resp
 				continue;
 			}
 
-			// Determine credits amount
 			const isTrial = transaction.is_trial_period === 'true';
 			const creditsAmount = getCreditsForProduct(transaction.product_id, isTrial);
 
-			// Add to batch
 			insertStatements.push(
 				env.tweety_credits.prepare(
 					`INSERT INTO receipts (
@@ -91,12 +83,10 @@ export async function syncTransactions(request: Request, env: Env): Promise<Resp
 			processedCount++;
 		}
 
-		// Execute all inserts atomically (if any new transactions)
 		if (insertStatements.length > 0) {
 			await env.tweety_credits.batch(insertStatements);
 		}
 
-		// Get updated balance
 		const balance = await getRemainingCredits(userId, env);
 
 		return new Response(

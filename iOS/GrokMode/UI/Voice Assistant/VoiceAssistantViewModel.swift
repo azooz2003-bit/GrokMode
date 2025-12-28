@@ -85,7 +85,6 @@ class VoiceAssistantViewModel: NSObject {
             self.audioStreamer = nil
         }
 
-        // Initialize the selected voice service
         let voiceService = selectedServiceType.createService(sessionState: sessionState)
         self.voiceService = voiceService
 
@@ -131,17 +130,14 @@ class VoiceAssistantViewModel: NSObject {
                     AppLogger.voice.info("WebSocket disconnected normally")
                 }
 
-                // Stop the session to clean up resources
                 self?.stopSession()
 
-                // Update state
                 if let error = error {
                     self?.voiceSessionState = .error("Disconnected: \(error.localizedDescription)")
                 }
             }
         }
 
-        // Start connection
         do {
             // Execute user profile fetch and XAI connection in parallel
             #if DEBUG
