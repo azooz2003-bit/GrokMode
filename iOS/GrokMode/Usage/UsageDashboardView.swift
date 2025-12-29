@@ -13,6 +13,19 @@ struct UsageDashboardView: View {
     var body: some View {
         NavigationStack {
             List {
+                // Usage Period Section
+                Section {
+                    VStack(spacing: 4) {
+                        Text("Usage Period")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text("Since \(tracker.usagePeriodStart.formatted(date: .abbreviated, time: .shortened))")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+
                 // Total Cost Section
                 Section {
                     HStack {

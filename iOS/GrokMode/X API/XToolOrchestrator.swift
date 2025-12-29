@@ -74,7 +74,16 @@ actor XToolOrchestrator {
                 let responseString = String(data: data, encoding: .utf8)
                 let enrichedResponse = enrichResponseWithPagination(responseString, toolName: tool.name)
 
-                await trackXAPIUsage(for: tool, responseData: data)
+                do {
+                    try await trackXAPIUsage(for: tool, responseData: data)
+                } catch {
+                    AppLogger.usage.error("X API usage tracking failed: \(error)")
+                    let trackingError = XToolCallError(
+                        code: "USAGE_TRACKING_FAILED",
+                        message: "Usage tracking failed: \(error.localizedDescription)"
+                    )
+                    return .failure(id: id, toolName: tool.name, error: trackingError, statusCode: nil)
+                }
 
                 return .success(id: id, toolName: tool.name, response: enrichedResponse, statusCode: httpResponse.statusCode)
             } else if httpResponse.statusCode == 401 {
@@ -801,59 +810,83 @@ actor XToolOrchestrator {
 
     // MARK: - Usage Tracking
 
-    /// Track X API usage based on tool type and response data
+    /// Track X API usage based on tool type and response data with server registration
     @MainActor
-    private func trackXAPIUsage(for tool: XTool, responseData: Data) {
+    private func trackXAPIUsage(for tool: XTool, responseData: Data) async throws {
         // Parse response to count items
         guard let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any] else {
             return
         }
 
-        // Categorize tools and track usage
+        var operation: XAPIOperation?
+        var count = 0
+
+        // Categorize tools and determine operation type
         switch tool {
         // Read operations - Posts
         case .searchRecentTweets, .searchAllTweets, .getTweets, .getTweet,
              .getUserLikedTweets, .getUserTweets, .getUserMentions,
              .getHomeTimeline, .getRepostsOfMe:
             if let data = json["data"] as? [[String: Any]] {
-                UsageTracker.shared.trackXAPIUsage(operation: .postRead, count: data.count)
+                operation = .postRead
+                count = data.count
             } else if json["data"] != nil {
-                // Single tweet
-                UsageTracker.shared.trackXAPIUsage(operation: .postRead, count: 1)
+                operation = .postRead
+                count = 1
             }
 
         // Read operations - Users
         case .getUserFollowers, .getUserFollowing, .getUserByUsername, .getUserById:
             if let data = json["data"] as? [[String: Any]] {
-                UsageTracker.shared.trackXAPIUsage(operation: .userRead, count: data.count)
+                operation = .userRead
+                count = data.count
             } else if json["data"] != nil {
-                // Single user
-                UsageTracker.shared.trackXAPIUsage(operation: .userRead, count: 1)
+                operation = .userRead
+                count = 1
             }
 
         // Read operations - DM Events
         case .getDMEvents, .getConversationDMs, .getDMEventDetails:
             if let data = json["data"] as? [[String: Any]] {
-                UsageTracker.shared.trackXAPIUsage(operation: .dmEventRead, count: data.count)
+                operation = .dmEventRead
+                count = data.count
             }
 
         // Create operations - Content
         case .createTweet, .replyToTweet, .quoteTweet, .deleteTweet, .createPollTweet, .editTweet:
-            UsageTracker.shared.trackXAPIUsage(operation: .contentCreate, count: 1)
+            operation = .contentCreate
+            count = 1
 
         // Create operations - DM Interactions
         case .sendDMToParticipant, .sendDMToConversation, .createDMConversation, .deleteDMEvent:
-            UsageTracker.shared.trackXAPIUsage(operation: .dmInteractionCreate, count: 1)
+            operation = .dmInteractionCreate
+            count = 1
 
         // Create operations - User Interactions
         case .likeTweet, .unlikeTweet, .retweet, .unretweet,
              .followUser, .unfollowUser, .blockUserDMs, .unblockUserDMs,
              .muteUser, .unmuteUser, .addBookmark, .removeBookmark:
-            UsageTracker.shared.trackXAPIUsage(operation: .userInteractionCreate, count: 1)
+            operation = .userInteractionCreate
+            count = 1
 
         default:
-            // Tools without usage tracking (e.g., getAuthenticatedUser)
-            break
+            // Tools without usage tracking
+            return
+        }
+
+        // Register usage with server if operation was determined
+        if let operation = operation {
+            let userId = try await StoreKitManager.shared.getOrCreateAppAccountToken().uuidString
+            let result = await UsageTracker.shared.trackAndRegisterXAPIUsage(
+                operation: operation,
+                count: count,
+                userId: userId
+            )
+
+            if case .failure(let error) = result {
+                AppLogger.usage.error("X API usage registration failed: \(error)")
+                throw error
+            }
         }
     }
 }

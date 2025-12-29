@@ -8,22 +8,73 @@ import StoreKit
 
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
-    @State private var isPurchasing = false
-    @State private var showError = false
-    @State private var errorMessage = ""
+    @State private var viewModel = StoreViewModel()
 
     let onLogout: () async -> Void
-
-    private var currentMonthName: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMMM"
-        return formatter.string(from: Date())
-    }
 
     var body: some View {
         NavigationStack {
             List {
-                // Logout Section
+                // Balance Header
+                Section {
+                    BalanceHeaderView(balance: viewModel.creditBalance)
+                }
+
+                // Subscriptions
+                if !viewModel.subscriptionProducts.isEmpty {
+                    Section("Subscriptions") {
+                        ForEach(viewModel.subscriptionProducts.sorted(by: { $0.price < $1.price })) { product in
+                            PurchaseProductRow(
+                                product: product,
+                                isActive: viewModel.activeSubscriptions.contains(where: { $0.id == product.id }),
+                                onPurchase: {
+                                    await viewModel.purchase(product)
+                                }
+                            )
+                        }
+                    }
+                }
+
+                // One-Time Purchases
+                if !viewModel.oneTimeProducts.isEmpty {
+                    Section("One-Time Purchases") {
+                        ForEach(viewModel.oneTimeProducts) { product in
+                            PurchaseProductRow(
+                                product: product,
+                                isActive: false,
+                                onPurchase: {
+                                    await viewModel.purchase(product)
+                                }
+                            )
+                        }
+                    }
+                }
+
+                // Account Actions
+                Section("Account") {
+                    Button {
+                        Task {
+                            await viewModel.restorePurchases()
+                        }
+                    } label: {
+                        HStack {
+                            Text("Restore Purchases")
+                            Spacer()
+                            if viewModel.isPurchasing {
+                                ProgressView()
+                            }
+                        }
+                    }
+                    .disabled(viewModel.isPurchasing)
+
+                    #if DEBUG
+                    NavigationLink("Usage Dashboard") {
+                        UsageDashboardView()
+                    }
+                    #endif
+                }
+
+                // Logout
                 Section {
                     Button {
                         Task {
@@ -54,18 +105,31 @@ struct SettingsView: View {
                     }
                 }
             }
-            .alert("Purchase Error", isPresented: $showError) {
+            .alert("Error", isPresented: $viewModel.showError) {
                 Button("OK") {}
             } message: {
-                Text(errorMessage)
+                Text(viewModel.errorMessage)
             }
             .overlay {
-                if isPurchasing {
-                    Color.black.opacity(0.3)
-                        .ignoresSafeArea()
-                    ProgressView()
-                        .tint(.white)
+                if viewModel.isPurchasing {
+                    ZStack {
+                        Color.black.opacity(0.3)
+                            .ignoresSafeArea()
+
+                        ProgressView()
+                            .controlSize(.large)
+                            .padding()
+                            .background(.regularMaterial)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
                 }
+            }
+            .task {
+                // Restore any unfinished transactions first
+                await StoreKitManager.shared.restoreAllTransactions()
+
+                // Then load products and balance
+                await viewModel.loadData()
             }
         }
     }

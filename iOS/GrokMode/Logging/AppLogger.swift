@@ -19,6 +19,7 @@ enum AppLogger {
     static let audio = Logger(subsystem: subsystem, category: "Audio")
     static let ui = Logger(subsystem: subsystem, category: "UI")
     static let store = Logger(subsystem: subsystem, category: "Store")
+    static let usage = Logger(subsystem: subsystem, category: "Usage")
 
     static var isDebugMode: Bool {
         #if DEBUG

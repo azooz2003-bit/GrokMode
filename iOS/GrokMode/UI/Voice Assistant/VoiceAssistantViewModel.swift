@@ -208,7 +208,33 @@ class VoiceAssistantViewModel: NSObject {
         isSessionActivated = true
         sessionStartStopTask?.cancel()
         sessionStartStopTask = Task { @MainActor in
-            // Already connected, start listening
+            await StoreKitManager.shared.restoreAllTransactions()
+
+            // Check balance before starting
+            do {
+                let userId = try await StoreKitManager.shared.getOrCreateAppAccountToken().uuidString
+
+                let balance = try await RemoteCreditsService.shared.getBalance(userId: userId)
+
+                guard balance.remaining > 0 else {
+                    self.voiceSessionState = .error("Insufficient credits. Please purchase more.")
+                    self.isSessionActivated = false
+                    self.addSystemMessage("Session blocked: Insufficient credits")
+                    return
+                }
+
+                AppLogger.voice.info("Balance check passed: $\(balance.remaining) remaining")
+            } catch {
+                AppLogger.voice.error("Pre-session checks failed: \(error)")
+                self.voiceSessionState = .error("Could not verify balance. Check your connection.")
+                self.isSessionActivated = false
+                self.addSystemMessage("Session blocked: Could not verify balance")
+                return
+            }
+
+            guard !Task.isCancelled else { return }
+
+            // Proceed with connection
             await connect()
 
             guard !Task.isCancelled else { return }
@@ -221,12 +247,33 @@ class VoiceAssistantViewModel: NSObject {
                 guard let self = self, let startTime = self.sessionStartTime else { return }
                 self.sessionElapsedTime = Date().timeIntervalSince(startTime)
 
-                // Track usage every complete minute for Grok sessions
+                // Track usage every complete minute for xAI sessions
                 if self.selectedServiceType == .xai {
                     let currentMinute = Int(self.sessionElapsedTime / 60)
                     if currentMinute > self.trackedMinutes {
-                        UsageTracker.shared.trackGrokVoiceMinute()
                         self.trackedMinutes = currentMinute
+
+                        // Register usage with server
+                        Task { @MainActor in
+                            do {
+                                let userId = try await StoreKitManager.shared.getOrCreateAppAccountToken().uuidString
+                                let result = await UsageTracker.shared.trackAndRegisterXAIUsage(
+                                    minutes: 1.0,
+                                    userId: userId
+                                )
+
+                                if case .failure(let error) = result {
+                                    AppLogger.voice.error("xAI usage tracking failed: \(error)")
+                                    self.stopSession()
+                                    self.voiceSessionState = .error("Usage tracking failed. Session stopped.")
+                                    self.addSystemMessage("Session stopped: Usage tracking failed")
+                                }
+                            } catch {
+                                AppLogger.voice.error("Failed to get user ID: \(error)")
+                                self.stopSession()
+                                self.voiceSessionState = .error("Session stopped")
+                            }
+                        }
                     }
                 }
             }
@@ -264,13 +311,26 @@ class VoiceAssistantViewModel: NSObject {
         }
     }
 
-    /// Track any untracked partial usage for Grok sessions (called when app backgrounds or session stops)
+    /// Track any untracked partial usage for xAI sessions (called when app backgrounds or session stops)
     func trackPartialUsageIfNeeded() {
         guard selectedServiceType == .xai, sessionElapsedTime > 0 else { return }
 
         let remainingSeconds = sessionElapsedTime.truncatingRemainder(dividingBy: 60)
         if remainingSeconds > 0 {
-            UsageTracker.shared.trackGrokVoicePartialMinute(seconds: remainingSeconds)
+            // Register partial minute with server
+            Task { @MainActor in
+                do {
+                    let userId = try await StoreKitManager.shared.getOrCreateAppAccountToken().uuidString
+                    let minutes = remainingSeconds / 60.0
+                    _ = await UsageTracker.shared.trackAndRegisterXAIUsage(
+                        minutes: minutes,
+                        userId: userId
+                    )
+                    // Don't stop session on failure here - this is a checkpoint, not critical
+                } catch {
+                    AppLogger.voice.error("Failed to track partial usage: \(error)")
+                }
+            }
         }
     }
 

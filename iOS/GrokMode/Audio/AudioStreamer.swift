@@ -162,7 +162,7 @@ class AudioStreamer: NSObject {
     private func startStreamingImpl() throws {
         guard !isStreaming else { return }
 
-        AppLogger.audio.info("🎙️ Starting audio streaming to XAI")
+        AppLogger.audio.info("🎙️ Starting audio streaming")
 
         let inputFormat = inputNode.inputFormat(forBus: 0)
         #if DEBUG

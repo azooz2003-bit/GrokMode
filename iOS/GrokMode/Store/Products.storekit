@@ -1,0 +1,183 @@
+{
+  "appPolicies" : {
+    "eula" : "",
+    "policies" : [
+      {
+        "locale" : "en_US",
+        "policyText" : "",
+        "policyURL" : ""
+      }
+    ]
+  },
+  "identifier" : "8C846230",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "15.99",
+      "familyShareable" : false,
+      "internalID" : "6670028870",
+      "localizations" : [
+        {
+          "description" : "One-time purchase of $10 in API credits",
+          "displayName" : "10 Credits",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "co.azizalbahar.TweetyXVoiceAssistant.credits.10",
+      "referenceName" : "10 Credits",
+      "type" : "Consumable"
+    }
+  ],
+  "settings" : {
+    "_applicationInternalID" : "6670028869",
+    "_developerTeamID" : "Y9KULA993V",
+    "_askToBuyEnabled" : false,
+    "_billingGracePeriodEnabled" : false,
+    "_billingIssuesEnabled" : false,
+    "_disableDialogs" : false,
+    "_failTransactionsEnabled" : false,
+    "_locale" : "en_US",
+    "_renewalBillingIssuesEnabled" : false,
+    "_storefront" : "USA",
+    "_storeKitErrors" : [
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Load Products"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Purchase"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Verification"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "App Store Sync"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Subscription Status"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "App Transaction"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Manage Subscriptions Sheet"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Refund Request Sheet"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Offer Code Redeem Sheet"
+      }
+    ],
+    "_timeRate" : 0
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "21543962",
+      "localizations" : [
+
+      ],
+      "name" : "Tweety Credits",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "14.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "6670028871",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Weekly subscription providing $11 in API credits",
+              "displayName" : "Tweety Plus",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "co.azizalbahar.TweetyXVoiceAssistant.plusSub",
+          "recurringSubscriptionPeriod" : "P1W",
+          "referenceName" : "Tweety Plus",
+          "subscriptionGroupID" : "21543962",
+          "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "23.99",
+          "familyShareable" : false,
+          "groupNumber" : 2,
+          "internalID" : "6670028872",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Weekly subscription with $20 credits + custom voice selection",
+              "displayName" : "Tweety Pro",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "co.azizalbahar.TweetyXVoiceAssistant.proSub",
+          "recurringSubscriptionPeriod" : "P1W",
+          "referenceName" : "Tweety Pro",
+          "subscriptionGroupID" : "21543962",
+          "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "43.99",
+          "familyShareable" : false,
+          "groupNumber" : 3,
+          "internalID" : "6670028873",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Premium weekly subscription with $40 credits and custom voice selection",
+              "displayName" : "Tweety Ultra",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "co.azizalbahar.TweetyXVoiceAssistant.ultraSub",
+          "recurringSubscriptionPeriod" : "P1W",
+          "referenceName" : "Tweety Ultra",
+          "subscriptionGroupID" : "21543962",
+          "type" : "RecurringSubscription"
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}

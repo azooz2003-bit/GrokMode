@@ -7,6 +7,7 @@
 
 import Foundation
 import SwiftUI
+internal import os
 
 /// Tracks usage and costs across all services
 @Observable
@@ -18,6 +19,7 @@ class UsageTracker {
     var grokVoiceUsage = GrokVoiceUsage()
     var openAIUsage = OpenAIUsage()
     var xAPIUsage = XAPIUsage()
+    var usagePeriodStart: Date = Date()
 
     // MARK: - Computed Totals
 
@@ -79,7 +81,149 @@ class UsageTracker {
         grokVoiceUsage = GrokVoiceUsage()
         openAIUsage = OpenAIUsage()
         xAPIUsage = XAPIUsage()
+        usagePeriodStart = Date()
         saveUsage()
+    }
+
+    // MARK: - Server-Side Tracking Methods
+
+    func trackAndRegisterOpenAIUsage(
+        audioInputTokens: Int = 0,
+        audioOutputTokens: Int = 0,
+        textInputTokens: Int = 0,
+        textOutputTokens: Int = 0,
+        cachedTextInputTokens: Int = 0,
+        userId: String
+    ) async -> Result<CreditBalance, Error> {
+        // Track locally first
+        trackOpenAIUsage(
+            audioInputTokens: audioInputTokens,
+            audioOutputTokens: audioOutputTokens,
+            textInputTokens: textInputTokens,
+            textOutputTokens: textOutputTokens,
+            cachedTextInputTokens: cachedTextInputTokens
+        )
+
+        // Register with server
+        do {
+            let usage = UsageDetails.openAI(OpenAIUsageDetails(
+                audioInputTokens: audioInputTokens,
+                audioOutputTokens: audioOutputTokens,
+                textInputTokens: textInputTokens,
+                textOutputTokens: textOutputTokens,
+                cachedTextInputTokens: cachedTextInputTokens
+            ))
+
+            let response = try await RemoteCreditsService.shared.trackUsage(
+                userId: userId,
+                service: "openai_realtime",
+                usage: usage
+            )
+
+            let balance = CreditBalance(
+                userId: userId,
+                spent: response.spent,
+                total: response.total,
+                remaining: response.remaining
+            )
+
+            return .success(balance)
+        } catch {
+            AppLogger.usage.error("OpenAI usage registration failed: \(error)")
+            return .failure(error)
+        }
+    }
+
+    func trackAndRegisterXAIUsage(
+        minutes: Double,
+        userId: String
+    ) async -> Result<CreditBalance, Error> {
+        // Track locally first
+        trackGrokVoicePartialMinute(seconds: minutes * 60.0)
+
+        // Register with server
+        do {
+            let usage = UsageDetails.grokVoice(GrokVoiceUsageDetails(minutes: minutes))
+
+            let response = try await RemoteCreditsService.shared.trackUsage(
+                userId: userId,
+                service: "grok_voice",
+                usage: usage
+            )
+
+            let balance = CreditBalance(
+                userId: userId,
+                spent: response.spent,
+                total: response.total,
+                remaining: response.remaining
+            )
+
+            return .success(balance)
+        } catch {
+            AppLogger.usage.error("xAI usage registration failed: \(error)")
+            return .failure(error)
+        }
+    }
+
+    func trackAndRegisterXAPIUsage(
+        operation: XAPIOperation,
+        count: Int,
+        userId: String
+    ) async -> Result<CreditBalance, Error> {
+        // Track locally first
+        trackXAPIUsage(operation: operation, count: count)
+
+        // Register with server
+        do {
+            var postsRead: Int? = nil
+            var usersRead: Int? = nil
+            var dmEventsRead: Int? = nil
+            var contentCreates: Int? = nil
+            var dmInteractionCreates: Int? = nil
+            var userInteractionCreates: Int? = nil
+
+            switch operation {
+            case .postRead:
+                postsRead = count
+            case .userRead:
+                usersRead = count
+            case .dmEventRead:
+                dmEventsRead = count
+            case .contentCreate:
+                contentCreates = count
+            case .dmInteractionCreate:
+                dmInteractionCreates = count
+            case .userInteractionCreate:
+                userInteractionCreates = count
+            }
+
+            let usage = UsageDetails.xAPI(XAPIUsageDetails(
+                postsRead: postsRead,
+                usersRead: usersRead,
+                dmEventsRead: dmEventsRead,
+                contentCreates: contentCreates,
+                dmInteractionCreates: dmInteractionCreates,
+                userInteractionCreates: userInteractionCreates
+            ))
+
+            let response = try await RemoteCreditsService.shared.trackUsage(
+                userId: userId,
+                service: "x_api",
+                usage: usage
+            )
+
+            let balance = CreditBalance(
+                userId: userId,
+                spent: response.spent,
+                total: response.total,
+                remaining: response.remaining
+            )
+
+            return .success(balance)
+        } catch {
+            AppLogger.usage.error("X API usage registration failed: \(error)")
+            return .failure(error)
+        }
     }
 
     // MARK: - Persistence
@@ -94,6 +238,7 @@ class UsageTracker {
         if let xAPIData = try? JSONEncoder().encode(xAPIUsage) {
             UserDefaults.standard.set(xAPIData, forKey: "xAPIUsage")
         }
+        UserDefaults.standard.set(usagePeriodStart, forKey: "usagePeriodStart")
     }
 
     private func loadUsage() {
@@ -108,6 +253,9 @@ class UsageTracker {
         if let xAPIData = UserDefaults.standard.data(forKey: "xAPIUsage"),
            let loaded = try? JSONDecoder().decode(XAPIUsage.self, from: xAPIData) {
             xAPIUsage = loaded
+        }
+        if let periodStart = UserDefaults.standard.object(forKey: "usagePeriodStart") as? Date {
+            usagePeriodStart = periodStart
         }
     }
 }

@@ -591,7 +591,7 @@ class OpenAIVoiceService: VoiceService {
                 AppLogger.logSensitive(AppLogger.voice, level: .debug, "response.done JSON:\n\(AppLogger.prettyJSON(jsonString))")
             }
 
-            // Track OpenAI usage
+            // Track OpenAI usage with server registration
             if let usage = message.response?.usage {
                 let audioInputTokens = usage.input_token_details?.audio_tokens ?? 0
                 let audioOutputTokens = usage.output_token_details?.audio_tokens ?? 0
@@ -599,13 +599,33 @@ class OpenAIVoiceService: VoiceService {
                 let textOutputTokens = usage.output_token_details?.text_tokens ?? 0
                 let cachedTextInputTokens = usage.input_token_details?.cached_tokens ?? 0
 
-                UsageTracker.shared.trackOpenAIUsage(
-                    audioInputTokens: audioInputTokens,
-                    audioOutputTokens: audioOutputTokens,
-                    textInputTokens: textInputTokens,
-                    textOutputTokens: textOutputTokens,
-                    cachedTextInputTokens: cachedTextInputTokens
-                )
+                Task { @MainActor in
+                    do {
+                        let userId = try await StoreKitManager.shared.getOrCreateAppAccountToken().uuidString
+                        let result = await UsageTracker.shared.trackAndRegisterOpenAIUsage(
+                            audioInputTokens: audioInputTokens,
+                            audioOutputTokens: audioOutputTokens,
+                            textInputTokens: textInputTokens,
+                            textOutputTokens: textOutputTokens,
+                            cachedTextInputTokens: cachedTextInputTokens,
+                            userId: userId
+                        )
+
+                        switch result {
+                        case .success(let balance):
+                            if balance.remaining <= 0 {
+                                AppLogger.voice.error("OpenAI usage reached ")
+                                self.onError?(VoiceServiceError.insufficientCredits(balance: balance.remaining.rounded(toPlaces: 2)))
+                            }
+                        case .failure(let error):
+                            AppLogger.voice.error("OpenAI usage tracking failed: \(error)")
+                            self.onError?(VoiceServiceError.usageTrackingFailed(error))
+                        }
+                    } catch {
+                        AppLogger.voice.error("Failed to track OpenAI usage: \(error)")
+                        self.onError?(VoiceServiceError.usageTrackingFailed(error))
+                    }
+                }
             }
 
         default:

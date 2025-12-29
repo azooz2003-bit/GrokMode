@@ -47,6 +47,8 @@ enum VoiceServiceError: LocalizedError {
     case apiError(statusCode: Int, message: String)
     case authenticationFailed
     case configurationFailed
+    case usageTrackingFailed(Error)
+    case insufficientCredits(balance: Double)
 
     var errorDescription: String? {
         switch self {
@@ -60,6 +62,10 @@ enum VoiceServiceError: LocalizedError {
             return "Failed to authenticate with voice service"
         case .configurationFailed:
             return "Failed to configure voice session"
+        case .usageTrackingFailed(let error):
+            return "Usage tracking failed: \(error.localizedDescription)"
+        case .insufficientCredits(let balance):
+            return "Insufficient credits ($\(balance))"
         }
     }
 }

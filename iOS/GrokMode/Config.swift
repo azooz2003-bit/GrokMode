@@ -58,4 +58,9 @@ enum Config {
     static let appId: String = {
         return "\(teamId).\(bundleId)"
     }()
+
+    static let creditsBaseURL = baseProxyURL.appending(path: "credits")
+    static let transactionSyncURL = creditsBaseURL.appending(path: "transactions/sync")
+    static let usageTrackURL = creditsBaseURL.appending(path: "usage/track")
+    static let balanceURL = creditsBaseURL.appending(path: "balance")
 }
