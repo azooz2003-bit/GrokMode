@@ -73,13 +73,13 @@ export function getCreditsForProduct(productId: string, isTrial: boolean): numbe
 
 	switch (productId) {
 		case 'co.azizalbahar.TweetyXVoiceAssistant.plusSub':
-			return 11.00;  // $11 in credits
+			return 8.00;  // $8 in credits
 
 		case 'co.azizalbahar.TweetyXVoiceAssistant.proSub':
-			return 20.00;  // $20 in credits
+			return 14.00;  // $14 in credits
 
 		case 'co.azizalbahar.TweetyXVoiceAssistant.ultraSub':
-			return 40.00;  // $40 in credits
+			return 28.00;  // $28 in credits
 
 		default:
 			// For one-time credit purchases, could parse amount from product ID

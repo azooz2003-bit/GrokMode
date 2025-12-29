@@ -17,11 +17,11 @@ enum ProductConfiguration {
         var creditsAmount: Double {
             switch self {
             case .plus:
-                return 11.00
+                return 8.00
             case .pro:
-                return 20.00
+                return 14.00
             case .ultra:
-                return 40.00
+                return 28.00
             case .credits10:
                 return 10.00
             }
