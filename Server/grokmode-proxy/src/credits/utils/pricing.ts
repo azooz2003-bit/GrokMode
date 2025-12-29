@@ -72,13 +72,13 @@ export function getCreditsForProduct(productId: string, isTrial: boolean): numbe
 	}
 
 	switch (productId) {
-		case 'co.azizalbahar.TweetyXVoiceAssistant.plus':
+		case 'co.azizalbahar.TweetyXVoiceAssistant.plusSub':
 			return 11.00;  // $11 in credits
 
-		case 'co.azizalbahar.TweetyXVoiceAssistant.pro':
+		case 'co.azizalbahar.TweetyXVoiceAssistant.proSub':
 			return 20.00;  // $20 in credits
 
-		case 'co.azizalbahar.TweetyXVoiceAssistant.ultra':
+		case 'co.azizalbahar.TweetyXVoiceAssistant.ultraSub':
 			return 40.00;  // $40 in credits
 
 		default:
