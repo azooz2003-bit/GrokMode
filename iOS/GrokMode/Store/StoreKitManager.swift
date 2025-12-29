@@ -19,6 +19,7 @@ final class StoreKitManager {
     private let iCloudStore = NSUbiquitousKeyValueStore.default
 
     private var transactionObserverTask: Task<Void, Never>?
+    private var restoreTask: Task<Void, Never>?
 
     var products: [Product] = []
     var activeSubscriptions: [Product] = []
@@ -123,7 +124,25 @@ final class StoreKitManager {
     }
 
     func restoreAllTransactions() async {
-        AppLogger.store.info("Restoring unfinished transactions")
+        // If a restore is already in progress, wait for it to complete instead of skipping
+        // This prevents App Attest counter race conditions while ensuring all callers wait for completion
+        if let existingTask = restoreTask {
+            AppLogger.store.info("Restore already in progress, waiting for completion...")
+            await existingTask.value
+            AppLogger.store.info("Existing restore completed")
+        }
+
+        let task = Task {
+            await performRestore()
+        }
+
+        restoreTask = task
+        await task.value
+        restoreTask = nil
+    }
+
+    private func performRestore() async {
+        AppLogger.store.info("Starting transaction restore")
 
         var restoredCount = 0
 
