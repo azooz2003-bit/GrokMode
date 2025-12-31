@@ -24,12 +24,19 @@ CREATE TABLE IF NOT EXISTS receipts (
     purchase_date INTEGER NOT NULL,
     is_trial_period INTEGER DEFAULT 0,
     validated_at INTEGER DEFAULT (unixepoch()),
+    transaction_type TEXT,
+    previous_product_id TEXT,
+    revocation_date INTEGER,
+    revocation_reason TEXT,
+    expiration_date INTEGER,
+    notes TEXT,
     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_receipts_user_id ON receipts(user_id);
 CREATE INDEX IF NOT EXISTS idx_receipts_transaction_id ON receipts(transaction_id);
 CREATE INDEX IF NOT EXISTS idx_receipts_original_transaction_id ON receipts(original_transaction_id);
+CREATE INDEX IF NOT EXISTS idx_receipts_original_purchase_date ON receipts(original_transaction_id, purchase_date);
 
 -- Usage logs (optional - for analytics and debugging)
 CREATE TABLE IF NOT EXISTS usage_logs (

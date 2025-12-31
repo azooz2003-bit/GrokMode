@@ -1,10 +1,9 @@
 import { AppleTransaction } from '../types';
-import { getCreditsForProduct } from '../utils/pricing';
+import { classifyTransaction } from '../utils/transactionClassifier';
 import {
 	getRemainingCredits,
 	isTransactionProcessed,
-	createUserIfNotExists,
-	storeReceipt
+	createUserIfNotExists
 } from '../utils/db';
 
 interface Env {
@@ -48,7 +47,14 @@ export async function syncTransactions(request: Request, env: Env): Promise<Resp
 
 		const insertStatements = [];
 
-		for (const transaction of transactions) {
+		// Sort transactions by purchase date to process in chronological order
+		const sortedTransactions = transactions.sort((a, b) =>
+		parseInt(a.purchase_date_ms) - parseInt(b.purchase_date_ms)
+		);
+
+		// Process transactions sequentially to ensure each sees correct history
+		// This prevents race conditions where upgrade is classified as new subscription
+		for (const transaction of sortedTransactions) {
 			const alreadyProcessed = await isTransactionProcessed(
 				transaction.transaction_id,
 				env
@@ -59,15 +65,25 @@ export async function syncTransactions(request: Request, env: Env): Promise<Resp
 				continue;
 			}
 
-			const isTrial = transaction.is_trial_period === 'true';
-			const creditsAmount = getCreditsForProduct(transaction.product_id, isTrial);
+			// Classify transaction and calculate credits using tier ratio
+			const classification = await classifyTransaction(transaction, env);
+			const creditsAmount = classification.creditsToGrant;
 
-			insertStatements.push(
-				env.tweety_credits.prepare(
-					`INSERT INTO receipts (
+			const isTrial = transaction.is_trial_period === 'true';
+			const revocationDate = transaction.revocation_date_ms
+				? parseInt(transaction.revocation_date_ms)
+				: null;
+
+			// Use INSERT OR IGNORE to handle race conditions gracefully
+			// If another request inserts same transaction_id, this will silently skip
+			try {
+				await env.tweety_credits.prepare(
+					`INSERT OR IGNORE INTO receipts (
 						user_id, transaction_id, original_transaction_id,
-						product_id, credits_amount, purchase_date, is_trial_period
-					) VALUES (?, ?, ?, ?, ?, ?, ?)`
+						product_id, credits_amount, purchase_date, is_trial_period,
+						transaction_type, previous_product_id, revocation_date,
+						revocation_reason, expiration_date, notes
+					) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 				).bind(
 					userId,
 					transaction.transaction_id,
@@ -75,16 +91,27 @@ export async function syncTransactions(request: Request, env: Env): Promise<Resp
 					transaction.product_id,
 					creditsAmount,
 					parseInt(transaction.purchase_date_ms),
-					isTrial ? 1 : 0
-				)
-			);
+					isTrial ? 1 : 0,
+					classification.type,
+					classification.previousProductId,
+					revocationDate,
+					transaction.revocation_reason || null,
+					transaction.expiration_date_ms ? parseInt(transaction.expiration_date_ms) : null,
+					classification.notes
+				).run();
 
-			newCreditsAdded += creditsAmount;
-			processedCount++;
-		}
-
-		if (insertStatements.length > 0) {
-			await env.tweety_credits.batch(insertStatements);
+				// Only count as processed if insert succeeded (not ignored)
+				const inserted = await isTransactionProcessed(transaction.transaction_id, env);
+				if (inserted) {
+					newCreditsAdded += creditsAmount;
+					processedCount++;
+				} else {
+					skippedCount++;
+				}
+			} catch (error) {
+				console.error(`Failed to insert transaction ${transaction.transaction_id}:`, error);
+				// Continue processing other transactions
+			}
 		}
 
 		const balance = await getRemainingCredits(userId, env);

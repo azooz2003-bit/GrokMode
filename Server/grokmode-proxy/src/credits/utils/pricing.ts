@@ -91,3 +91,31 @@ export function getCreditsForProduct(productId: string, isTrial: boolean): numbe
 			return 0;
 	}
 }
+
+/**
+ * Get the subscription price (what user pays per cycle)
+ * Used for upgrade proration calculations
+ * IMPORTANT: These prices MUST match your App Store Connect configuration
+ * @param productId - Apple product ID
+ * @returns Price in USD per billing cycle
+ */
+export function getPriceForProduct(productId: string): number {
+	switch (productId) {
+		case 'co.azizalbahar.TweetyXVoiceAssistant.plusSub':
+			return 14.99;  // $14.99/week
+
+		case 'co.azizalbahar.TweetyXVoiceAssistant.proSub':
+			return 23.99;  // $23.99/week
+
+		case 'co.azizalbahar.TweetyXVoiceAssistant.ultraSub':
+			return 43.99;  // $43.99/week
+
+		default:
+			// For one-time credit purchases, price = credits (1:1 ratio)
+			if (productId.includes('.credits.')) {
+				const amount = parseFloat(productId.split('.credits.')[1]);
+				return isNaN(amount) ? 0 : amount;
+			}
+			return 0;
+	}
+}

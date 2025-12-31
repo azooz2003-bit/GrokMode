@@ -5,6 +5,10 @@ export interface AppleTransaction {
 	product_id: string;
 	purchase_date_ms: string;
 	is_trial_period?: string;
+	expiration_date_ms?: string;      // When subscription expires
+	revocation_date_ms?: string;      // When refund occurred (if applicable)
+	revocation_reason?: string;       // Why refund happened
+	ownership_type?: string;          // Purchase type (e.g., PURCHASED, FAMILY_SHARED)
 }
 
 export interface AppleReceipt {

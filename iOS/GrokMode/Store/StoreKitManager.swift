@@ -13,7 +13,6 @@ internal import os
 final class StoreKitManager {
     static let shared = StoreKitManager()
 
-    private let keychain = KeychainHelper()
     private let creditsService = RemoteCreditsService.shared
     private let appAccountTokenKey = "app_account_token"
     private let iCloudStore = NSUbiquitousKeyValueStore.default
@@ -28,33 +27,29 @@ final class StoreKitManager {
     private init() {}
 
     func getOrCreateAppAccountToken() async throws -> UUID {
-        if let existingUUID = await keychain.getString(for: appAccountTokenKey),
-           let uuid = UUID(uuidString: existingUUID) {
-            AppLogger.store.info("Retrieved existing appAccountToken from keychain")
-            return uuid
-        }
-
+        // Check iCloud (source of truth - tied to Apple ID)
         if let iCloudUUID = iCloudStore.string(forKey: appAccountTokenKey),
            let uuid = UUID(uuidString: iCloudUUID) {
             AppLogger.store.info("Retrieved appAccountToken from iCloud")
-            try await keychain.save(uuid.uuidString, for: appAccountTokenKey)
             return uuid
         }
 
+        // Check historical transactions (migration from old purchases)
         for await verificationResult in Transaction.all {
             if case .verified(let transaction) = verificationResult,
                let appAccountToken = transaction.appAccountToken {
                 AppLogger.store.info("Found appAccountToken from historical transaction: \(transaction.productID)")
-                try await keychain.save(appAccountToken.uuidString, for: appAccountTokenKey)
+                // Save to iCloud for future use
                 iCloudStore.set(appAccountToken.uuidString, forKey: appAccountTokenKey)
+                iCloudStore.synchronize()
                 return appAccountToken
             }
         }
 
-        // Make new user_id if first time
+        // Generate new user_id (first-time user)
         let newUUID = UUID()
-        try await keychain.save(newUUID.uuidString, for: appAccountTokenKey)
         iCloudStore.set(newUUID.uuidString, forKey: appAccountTokenKey)
+        iCloudStore.synchronize()
         AppLogger.store.info("Generated new appAccountToken for first-time user")
         return newUUID
     }
@@ -144,19 +139,39 @@ final class StoreKitManager {
     private func performRestore() async {
         AppLogger.store.info("Starting transaction restore")
 
-        var restoredCount = 0
+        var unfinishedTransactions: [Transaction] = []
 
+        // Collect all unfinished transactions
         for await verificationResult in Transaction.unfinished {
             guard case .verified(let transaction) = verificationResult else {
                 continue
             }
 
-            AppLogger.store.info("Processing unfinished transaction: \(transaction.productID), ID: \(transaction.id)")
-            await handleTransaction(verificationResult)
-            restoredCount += 1
+            AppLogger.store.info("Found unfinished transaction: \(transaction.productID), ID: \(transaction.id)")
+            unfinishedTransactions.append(transaction)
         }
 
-        AppLogger.store.info("Restore complete: processed \(restoredCount) unfinished transactions")
+        // Batch sync all unfinished transactions
+        if !unfinishedTransactions.isEmpty {
+            do {
+                try await syncTransactionsBatch(unfinishedTransactions)
+
+                // Finish all transactions after successful sync
+                for transaction in unfinishedTransactions {
+                    await transaction.finish()
+                    AppLogger.store.info("Finished transaction: \(transaction.id)")
+                }
+
+                AppLogger.store.info("Restore complete: processed \(unfinishedTransactions.count) unfinished transactions")
+            } catch {
+                AppLogger.store.error("Failed to sync unfinished transactions: \(error)")
+                // Don't finish transactions on error - StoreKit will redeliver
+            }
+        } else {
+            AppLogger.store.info("Restore complete: no unfinished transactions")
+        }
+
+        await updateActiveSubscriptions()
     }
 
     // MARK: - Private Methods
@@ -183,18 +198,19 @@ final class StoreKitManager {
     }
 
     private func syncTransaction(_ transaction: Transaction) async throws {
+        // Use batch sync for single transaction (server accepts arrays)
+        try await syncTransactionsBatch([transaction])
+    }
+
+    /// Sync multiple transactions as a batch
+    private func syncTransactionsBatch(_ transactions: [Transaction]) async throws {
+        guard !transactions.isEmpty else { return }
+
         let appAccountToken = try await getOrCreateAppAccountToken()
 
-        let request = TransactionSyncRequest(
-            appAccountToken: appAccountToken.uuidString,
-            transactionId: String(transaction.id),
-            originalTransactionId: String(transaction.originalID),
-            productId: transaction.productID,
-            purchaseDateMs: String(Int(transaction.purchaseDate.timeIntervalSince1970 * 1000)),
-            isTrialPeriod: transaction.offer?.type == .introductory ? "true" : "false"
-        )
+        let requests = transactions.map { $0.toSyncRequest(appAccountToken: appAccountToken) }
 
-        let response = try await creditsService.syncTransactions([request])
+        let response = try await creditsService.syncTransactions(requests)
 
         self.creditBalance = CreditBalance(
             userId: response.userId,
