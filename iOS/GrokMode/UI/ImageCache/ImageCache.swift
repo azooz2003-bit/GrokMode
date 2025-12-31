@@ -9,12 +9,12 @@ import SwiftUI
 internal import os
 
 actor ImageCache {
-    static let shared = ImageCache()
-
     private var memoryCache: [String: CachedImage] = [:]
-    private let maxMemoryCacheSize: Int = 200
+    private let maxMemoryCacheSize: Int
 
-    private init() {}
+    init(maxMemoryCacheSize: Int = 200) {
+        self.maxMemoryCacheSize = maxMemoryCacheSize
+    }
 
     @discardableResult
     func image(for url: URL) async throws -> UIImage {

@@ -8,9 +8,7 @@
 import Foundation
 
 extension URLRequest {
-    mutating func addAppAttestHeaders(isRetry: Bool = false) async throws {
-        let appAttestService = AppAttestService.shared
-
+    mutating func addAppAttestHeaders(appAttestService: AppAttestService, isRetry: Bool = false) async throws {
         guard await appAttestService.isSupported else {
             throw AppAttestError.notSupported
         }
@@ -21,7 +19,7 @@ extension URLRequest {
         self.setValue(isRetry ? "true" : "false", forHTTPHeaderField: "X-Apple-Attest-Retry")
     }
 
-    static func handleAttestationExpired() async {
-        await AppAttestService.shared.clearAttestation()
+    static func handleAttestationExpired(appAttestService: AppAttestService) async {
+        await appAttestService.clearAttestation()
     }
 }

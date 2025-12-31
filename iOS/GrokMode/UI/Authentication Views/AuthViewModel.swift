@@ -13,7 +13,11 @@ final class AuthViewModel {
     var isAuthenticated = false
     var currentUserHandle: String?
 
-    let authService = XAuthService(authPresentationProvider: .init())
+    let authService: XAuthService
+
+    init(appAttestService: AppAttestService) {
+        self.authService = XAuthService(authPresentationProvider: .init(), appAttestService: appAttestService)
+    }
 
     func startObserving() async {
         await authService.checkStatus()

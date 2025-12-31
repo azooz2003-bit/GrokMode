@@ -9,6 +9,7 @@ import SwiftUI
 
 struct CachedAsyncImage<Content: View, Placeholder: View, ErrorPlaceholder: View>: View {
     let url: URL?
+    let imageCache: ImageCache
     let content: (Image) -> Content
     let placeholder: () -> Placeholder
     let errorPlaceholder: (Error) -> ErrorPlaceholder
@@ -17,11 +18,13 @@ struct CachedAsyncImage<Content: View, Placeholder: View, ErrorPlaceholder: View
 
     init(
         url: URL?,
+        imageCache: ImageCache,
         @ViewBuilder content: @escaping (Image) -> Content,
         @ViewBuilder placeholder: @escaping () -> Placeholder,
         @ViewBuilder errorPlaceholder: @escaping (Error) -> ErrorPlaceholder
     ) {
         self.url = url
+        self.imageCache = imageCache
         self.content = content
         self.placeholder = placeholder
         self.errorPlaceholder = errorPlaceholder
@@ -51,7 +54,7 @@ struct CachedAsyncImage<Content: View, Placeholder: View, ErrorPlaceholder: View
         loadedImage = .loading
 
         do {
-            let image = try await ImageCache.shared.image(for: url)
+            let image = try await imageCache.image(for: url)
             loadedImage = .success(image)
         } catch {
             loadedImage = .failure(error)
@@ -81,11 +84,13 @@ private enum LoadedImageState: Equatable {
 extension CachedAsyncImage where ErrorPlaceholder == Placeholder {
     init(
         url: URL?,
+        imageCache: ImageCache,
         @ViewBuilder content: @escaping (Image) -> Content,
         @ViewBuilder placeholder: @escaping () -> Placeholder
     ) {
         self.init(
             url: url,
+            imageCache: imageCache,
             content: content,
             placeholder: placeholder,
             errorPlaceholder: { _ in placeholder() }
@@ -96,10 +101,12 @@ extension CachedAsyncImage where ErrorPlaceholder == Placeholder {
 extension CachedAsyncImage where Placeholder == ProgressView<EmptyView, EmptyView>, ErrorPlaceholder == ProgressView<EmptyView, EmptyView> {
     init(
         url: URL?,
+        imageCache: ImageCache,
         @ViewBuilder content: @escaping (Image) -> Content
     ) {
         self.init(
             url: url,
+            imageCache: imageCache,
             content: content,
             placeholder: { ProgressView() },
             errorPlaceholder: { _ in ProgressView() }
@@ -108,9 +115,10 @@ extension CachedAsyncImage where Placeholder == ProgressView<EmptyView, EmptyVie
 }
 
 extension CachedAsyncImage where Content == Image, Placeholder == ProgressView<EmptyView, EmptyView>, ErrorPlaceholder == ProgressView<EmptyView, EmptyView> {
-    init(url: URL?) {
+    init(url: URL?, imageCache: ImageCache) {
         self.init(
             url: url,
+            imageCache: imageCache,
             content: { $0 },
             placeholder: { ProgressView() },
             errorPlaceholder: { _ in ProgressView() }

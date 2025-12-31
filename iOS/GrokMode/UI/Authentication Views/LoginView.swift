@@ -18,7 +18,7 @@ struct LoginView: View {
 
             // Logo / Branding
             VStack(spacing: 15) {
-                Image(systemName: "waveform.circle.fill") // Placeholder logo
+                Image(systemName: "waveform.circle.fill")
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .frame(width: 80, height: 80)
@@ -82,7 +82,7 @@ struct LoginView: View {
                     }
                 }) {
                     HStack {
-                        Image(systemName: "xmark.square.fill") // Placeholder for X logo, usually usage of trademarked logos requires care
+                        Image(systemName: "xmark.square.fill")
                             .font(.title2)
                         Text("Sign in with X")
                             .fontWeight(.bold)
@@ -111,6 +111,7 @@ struct LoginView: View {
         }
         #if DEBUG
         .toolbar {
+            ToolbarSpacer()
             ToolbarItem(placement: .bottomBar) {
                 Button(action: {
                     Task {
@@ -126,7 +127,10 @@ struct LoginView: View {
 }
 
 #Preview {
-    @Previewable @State var authViewModel = AuthViewModel()
+    @Previewable @State var authViewModel = {
+        let appAttestService = AppAttestService()
+        return AuthViewModel(appAttestService: appAttestService)
+    }()
 
     LoginView(authViewModel: authViewModel)
 }

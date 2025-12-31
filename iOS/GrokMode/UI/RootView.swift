@@ -9,12 +9,25 @@ import SwiftUI
 
 struct RootView: View {
     @Bindable var authViewModel: AuthViewModel
+    let appAttestService: AppAttestService
+    let storeManager: StoreKitManager
+    let creditsService: RemoteCreditsService
+    let usageTracker: UsageTracker
+    let imageCache: ImageCache
 
     var body: some View {
         Group {
             if authViewModel.isAuthenticated {
-                VoiceAssistantView(autoConnect: true, authViewModel: authViewModel)
-                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                VoiceAssistantView(
+                    autoConnect: true,
+                    authViewModel: authViewModel,
+                    appAttestService: appAttestService,
+                    storeManager: storeManager,
+                    creditsService: creditsService,
+                    usageTracker: usageTracker,
+                    imageCache: imageCache
+                )
+                .transition(.opacity.combined(with: .scale(scale: 0.95)))
             } else {
                 LoginView(authViewModel: authViewModel)
                     .transition(.opacity.combined(with: .scale(scale: 1.05)))
@@ -28,10 +41,23 @@ struct RootView: View {
 }
 
 #Preview {
-    @Previewable @State var authViewModel = AuthViewModel()
+    @Previewable @State var authViewModel = {
+        let appAttestService = AppAttestService()
+        return AuthViewModel(appAttestService: appAttestService)
+    }()
 
-    RootView(authViewModel: authViewModel)
-        .task {
-            await authViewModel.startObserving()
-        }
+    let appAttestService = AppAttestService()
+    let creditsService = RemoteCreditsService(appAttestService: appAttestService)
+
+    RootView(
+        authViewModel: authViewModel,
+        appAttestService: appAttestService,
+        storeManager: StoreKitManager(creditsService: creditsService),
+        creditsService: creditsService,
+        usageTracker: UsageTracker(creditsService: creditsService),
+        imageCache: ImageCache()
+    )
+    .task {
+        await authViewModel.startObserving()
+    }
 }

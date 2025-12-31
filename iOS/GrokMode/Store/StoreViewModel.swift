@@ -25,8 +25,13 @@ final class StoreViewModel {
     var showError = false
     var errorMessage = ""
 
-    private let storeManager = StoreKitManager.shared
-    private let creditsService = RemoteCreditsService.shared
+    private let storeManager: StoreKitManager
+    private let creditsService: RemoteCreditsService
+
+    init(storeManager: StoreKitManager, creditsService: RemoteCreditsService) {
+        self.storeManager = storeManager
+        self.creditsService = creditsService
+    }
 
     var subscriptionProducts: [Product] {
         products.filter { $0.type == .autoRenewable }

@@ -10,14 +10,35 @@ internal import os
 
 @main
 struct GrokModeApp: App {
-    @State var authViewModel = AuthViewModel()
+    let creditsService: RemoteCreditsService
+    let appAttestService: AppAttestService
+
+    @State var authViewModel: AuthViewModel
+    @State var storeManager: StoreKitManager
+    @State var usageTracker: UsageTracker
+    @State var imageCache = ImageCache()
+
+    init() {
+        self.appAttestService = AppAttestService()
+        self.creditsService = RemoteCreditsService(appAttestService: appAttestService)
+        self._authViewModel = State(initialValue: AuthViewModel(appAttestService: appAttestService))
+        self._storeManager = State(initialValue: StoreKitManager(creditsService: creditsService))
+        self._usageTracker = State(initialValue: UsageTracker(creditsService: creditsService))
+    }
 
     var body: some Scene {
         WindowGroup {
-            RootView(authViewModel: authViewModel)
-                .task {
-                    await initializeStore()
-                }
+            RootView(
+                authViewModel: authViewModel,
+                appAttestService: appAttestService,
+                storeManager: storeManager,
+                creditsService: creditsService,
+                usageTracker: usageTracker,
+                imageCache: imageCache
+            )
+            .task {
+                await initializeStore()
+            }
         }
     }
 
@@ -25,13 +46,11 @@ struct GrokModeApp: App {
         do {
             AppLogger.store.info("Initializing StoreKit...")
 
-            StoreKitManager.shared.startObservingTransactions()
+            storeManager.startObservingTransactions()
 
-            // Load products from App Store
-            try await StoreKitManager.shared.loadProducts()
+            try await storeManager.loadProducts()
 
-            // Process any unfinished transactions from previous sessions
-            await StoreKitManager.shared.restoreAllTransactions()
+            await storeManager.restoreAllTransactions()
 
             AppLogger.store.info("StoreKit initialized successfully")
         } catch {

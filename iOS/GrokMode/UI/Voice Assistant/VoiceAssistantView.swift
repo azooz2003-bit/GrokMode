@@ -14,16 +14,34 @@ struct VoiceAssistantView: View {
     @State private var animator = WaveformAnimator()
     @State var isAnimating = false
     @State private var showSettings = false
-    @State private var hapticGenerator = UIImpactFeedbackGenerator(style: .light) // @State so that it's not frequently recreated
+    @State private var hapticGenerator = UIImpactFeedbackGenerator(style: .light)
 
     let shouldAutoconnect: Bool
+    let imageCache: ImageCache
+    let creditsService: RemoteCreditsService
 
     let barWidth: CGFloat = 3
     let barSpacing: CGFloat = 4
 
-    init(autoConnect: Bool = false, authViewModel: AuthViewModel) {
+    init(
+        autoConnect: Bool = false,
+        authViewModel: AuthViewModel,
+        appAttestService: AppAttestService,
+        storeManager: StoreKitManager,
+        creditsService: RemoteCreditsService,
+        usageTracker: UsageTracker,
+        imageCache: ImageCache
+    ) {
         self.shouldAutoconnect = autoConnect
-        self._viewModel = State(initialValue: VoiceAssistantViewModel(authViewModel: authViewModel))
+        self.imageCache = imageCache
+        self.creditsService = creditsService
+        self._viewModel = State(initialValue: VoiceAssistantViewModel(
+            authViewModel: authViewModel,
+            appAttestService: appAttestService,
+            creditsService: creditsService,
+            storeManager: storeManager,
+            usageTracker: usageTracker
+        ))
     }
 
     var body: some View {
@@ -126,9 +144,14 @@ struct VoiceAssistantView: View {
             .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $showSettings) {
-            SettingsView(onLogout: {
-                await viewModel.logoutX()
-            })
+            SettingsView(
+                storeManager: viewModel.storeManager,
+                creditsService: creditsService,
+                usageTracker: viewModel.usageTracker,
+                onLogout: {
+                    await viewModel.logoutX()
+                }
+            )
         }
     }
 
@@ -165,7 +188,7 @@ struct VoiceAssistantView: View {
         ScrollViewReader { scrollProxy in
             List {
                 ForEach(viewModel.conversationItems) { item in
-                    ConversationItemView(item: item)
+                    ConversationItemView(item: item, imageCache: imageCache)
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
                         .id(item.id)
@@ -222,7 +245,7 @@ struct VoiceAssistantView: View {
                 }
 
                 NavigationLink {
-                    UsageDashboardView()
+                    UsageDashboardView(tracker: viewModel.usageTracker)
                 } label: {
                     Label("Usage & Costs", systemImage: "chart.bar.fill")
                 }
@@ -271,7 +294,21 @@ struct VoiceAssistantView: View {
 }
 
 #Preview {
-    @Previewable @State var authViewModel = AuthViewModel()
-    VoiceAssistantView(authViewModel: authViewModel)
+    @Previewable @State var authViewModel = {
+        let appAttestService = AppAttestService()
+        return AuthViewModel(appAttestService: appAttestService)
+    }()
+
+    let appAttestService = AppAttestService()
+    let creditsService = RemoteCreditsService(appAttestService: appAttestService)
+
+    VoiceAssistantView(
+        authViewModel: authViewModel,
+        appAttestService: appAttestService,
+        storeManager: StoreKitManager(creditsService: creditsService),
+        creditsService: creditsService,
+        usageTracker: UsageTracker(creditsService: creditsService),
+        imageCache: ImageCache()
+    )
 }
 

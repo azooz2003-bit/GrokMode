@@ -39,6 +39,10 @@ class VoiceAssistantViewModel: NSObject {
     private var audioStreamer: AudioStreamer?
     private var sessionState = SessionState()
     private let authViewModel: AuthViewModel
+    private let appAttestService: AppAttestService
+    private let creditsService: RemoteCreditsService
+    let storeManager: StoreKitManager
+    let usageTracker: UsageTracker
 
     // MARK: Authentication
     var isXAuthenticated: Bool {
@@ -48,8 +52,12 @@ class VoiceAssistantViewModel: NSObject {
         authViewModel.currentUserHandle
     }
 
-    init(authViewModel: AuthViewModel) {
+    init(authViewModel: AuthViewModel, appAttestService: AppAttestService, creditsService: RemoteCreditsService, storeManager: StoreKitManager, usageTracker: UsageTracker) {
         self.authViewModel = authViewModel
+        self.appAttestService = appAttestService
+        self.creditsService = creditsService
+        self.storeManager = storeManager
+        self.usageTracker = usageTracker
         super.init()
         checkPermissions()
     }
@@ -85,7 +93,7 @@ class VoiceAssistantViewModel: NSObject {
             self.audioStreamer = nil
         }
 
-        let voiceService = selectedServiceType.createService(sessionState: sessionState)
+        let voiceService = selectedServiceType.createService(sessionState: sessionState, appAttestService: appAttestService, storeManager: storeManager, usageTracker: usageTracker)
         self.voiceService = voiceService
 
         // Initialize audio streamer with service-specific sample rate
@@ -140,7 +148,7 @@ class VoiceAssistantViewModel: NSObject {
             AppLogger.network.debug("===== USER PROFILE REQUEST =====")
             #endif
 
-            let xToolOrchestrator = XToolOrchestrator(authService: self.authViewModel.authService)
+            let xToolOrchestrator = XToolOrchestrator(authService: self.authViewModel.authService, storeManager: storeManager, usageTracker: usageTracker)
 
             // Connect to voice service in parallel with user profile fetch
             async let connect: () = voiceService.connect()
@@ -201,15 +209,15 @@ class VoiceAssistantViewModel: NSObject {
         isSessionActivated = true
         sessionStartStopTask?.cancel()
         sessionStartStopTask = Task { @MainActor in
-            await StoreKitManager.shared.restoreAllTransactions()
+            await storeManager.restoreAllTransactions()
 
             // Check balance before starting
             do {
-                let userId = try await StoreKitManager.shared.getOrCreateAppAccountToken().uuidString
+                let userId = try await storeManager.getOrCreateAppAccountToken().uuidString
 
-                let balance = try await RemoteCreditsService.shared.getBalance(userId: userId)
+                let balance = try await creditsService.getBalance(userId: userId)
 
-                guard !StoreKitManager.shared.activeSubscriptions.isEmpty else {
+                guard !storeManager.activeSubscriptions.isEmpty else{
                     self.voiceSessionState = .error("Subscription required, please subscribe.")
                     self.isSessionActivated = false
                     self.addSystemMessage("Session blocked: No active subscription")
@@ -255,8 +263,8 @@ class VoiceAssistantViewModel: NSObject {
                         // Register usage with server
                         Task { @MainActor in
                             do {
-                                let userId = try await StoreKitManager.shared.getOrCreateAppAccountToken().uuidString
-                                let result = await UsageTracker.shared.trackAndRegisterXAIUsage(
+                                let userId = try await self.storeManager.getOrCreateAppAccountToken().uuidString
+                                let result = await self.usageTracker.trackAndRegisterXAIUsage(
                                     minutes: 1.0,
                                     userId: userId
                                 )
@@ -318,9 +326,9 @@ class VoiceAssistantViewModel: NSObject {
             // Register partial minute with server
             Task { @MainActor in
                 do {
-                    let userId = try await StoreKitManager.shared.getOrCreateAppAccountToken().uuidString
+                    let userId = try await storeManager.getOrCreateAppAccountToken().uuidString
                     let minutes = remainingSeconds / 60.0
-                    _ = await UsageTracker.shared.trackAndRegisterXAIUsage(
+                    _ = await usageTracker.trackAndRegisterXAIUsage(
                         minutes: minutes,
                         userId: userId
                     )
@@ -426,7 +434,7 @@ class VoiceAssistantViewModel: NSObject {
 
             // Fetch rich preview asynchronously to update UI
             Task { @MainActor in
-                let xToolOrchestrator = XToolOrchestrator(authService: authViewModel.authService)
+                let xToolOrchestrator = XToolOrchestrator(authService: authViewModel.authService, storeManager: storeManager, usageTracker: usageTracker)
                 let preview = await tool.generatePreview(from: toolCall.arguments, orchestrator: xToolOrchestrator)
 
                 // Update with rich preview if still in queue
@@ -540,7 +548,7 @@ class VoiceAssistantViewModel: NSObject {
                 let isSuccess: Bool
 
                 // Handle X API tools through orchestrator
-                let orchestrator = XToolOrchestrator(authService: authViewModel.authService)
+                let orchestrator = XToolOrchestrator(authService: authViewModel.authService, storeManager: storeManager, usageTracker: usageTracker)
                 let result = await orchestrator.executeTool(tool, parameters: parameters, id: toolCall.id)
 
                 if result.success, let response = result.response {

@@ -10,6 +10,7 @@ internal import os
 
 struct ConversationItemView: View {
     let item: ConversationItem
+    let imageCache: ImageCache
 
     var body: some View {
         Group {
@@ -21,7 +22,7 @@ struct ConversationItemView: View {
                 AssistantSpeechBubble(text: text, timestamp: item.timestamp)
 
             case .tweet(let enrichedTweet):
-                TweetConversationCard(enrichedTweet: enrichedTweet)
+                TweetConversationCard(enrichedTweet: enrichedTweet, imageCache: imageCache)
 
             case .toolCall(let name, let status):
                 ToolCallIndicator(toolName: name, status: status, timestamp: item.timestamp)
@@ -102,6 +103,7 @@ struct AssistantSpeechBubble: View {
 
 struct TweetConversationCard: View {
     let enrichedTweet: EnrichedTweet
+    let imageCache: ImageCache
 
     var body: some View {
         PrimaryContentBlock(
@@ -113,7 +115,8 @@ struct TweetConversationCard: View {
             metrics: tweetMetrics,
             tweetUrl: tweetUrl,
             retweeterName: enrichedTweet.retweetInfo?.retweeter.name,
-            quotedTweet: quotedTweetData
+            quotedTweet: quotedTweetData,
+            imageCache: imageCache
         )
         .listRowSeparator(.hidden)
         .padding(.vertical, 4)
@@ -296,16 +299,17 @@ struct SystemMessageBubble: View {
 }
 
 #Preview {
+    let imageCache = ImageCache()
     VStack(spacing: 20) {
         ConversationItemView(item: ConversationItem(
             timestamp: Date(),
             type: .systemMessage("Connected to XAI Voice")
-        ))
+        ), imageCache: imageCache)
 
         ConversationItemView(item: ConversationItem(
             timestamp: Date(),
             type: .toolCall(name: "search_recent_tweets", status: .pending)
-        ))
+        ), imageCache: imageCache)
 
         ConversationItemView(item: ConversationItem(
             timestamp: Date(),
@@ -334,6 +338,6 @@ struct SystemMessageBubble: View {
                     )
                 )
             )
-        ))
+        ), imageCache: imageCache)
     }
 }

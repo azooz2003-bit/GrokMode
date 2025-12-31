@@ -16,15 +16,16 @@ struct TweetMetrics {
 
 struct PrimaryContentBlock: View {
     let sourceIcon: ImageResource = ImageResource(name: "X", bundle: .main)
-    let profileImageUrl: String?  // URL to profile image
+    let profileImageUrl: String?
     let displayName: String
     let username: String
     let text: String
     let media: [XMedia]?
-    let metrics: TweetMetrics?  // Engagement metrics
-    let tweetUrl: String?  // Deep link URL
-    let retweeterName: String?  // Name of person who retweeted (if this is a retweet)
-    let quotedTweet: QuotedTweetData?  // Quoted tweet data (if this is a quote tweet)
+    let metrics: TweetMetrics?
+    let tweetUrl: String?
+    let retweeterName: String?
+    let quotedTweet: QuotedTweetData?
+    let imageCache: ImageCache
 
     struct QuotedTweetData {
         let authorName: String
@@ -82,7 +83,8 @@ struct PrimaryContentBlock: View {
                     authorName: quotedTweet.authorName,
                     authorUsername: quotedTweet.authorUsername,
                     text: quotedTweet.text,
-                    media: quotedTweet.media
+                    media: quotedTweet.media,
+                    imageCache: imageCache
                 )
             }
 
@@ -175,7 +177,7 @@ struct PrimaryContentBlock: View {
     @ViewBuilder
     private func imageView() -> some View {
         if let url = highQualityProfileImageUrl(profileImageUrl) {
-            CachedAsyncImage(url: url) { image in
+            CachedAsyncImage(url: url, imageCache: imageCache) { image in
                 image
                     .resizable()
                     .scaledToFill()
@@ -220,7 +222,7 @@ struct PrimaryContentBlock: View {
                 let ratio = aspectRatio(forMedia: media)
 
                 if let urlString, let url = URL(string: urlString) {
-                    CachedAsyncImage(url: url) { image in
+                    CachedAsyncImage(url: url, imageCache: imageCache) { image in
                         image
                             .resizable()
                             .aspectRatio(ratio, contentMode: .fit)
@@ -286,6 +288,7 @@ struct CompactQuotedTweetView: View {
     let authorUsername: String
     let text: String
     let media: [XMedia]?
+    let imageCache: ImageCache
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -304,7 +307,7 @@ struct CompactQuotedTweetView: View {
                 .lineLimit(3)
                 .fixedSize(horizontal: false, vertical: true)
             if let media = media, let firstMedia = media.first, let urlString = firstMedia.displayUrl, let url = URL(string: urlString) {
-                CachedAsyncImage(url: url) { image in
+                CachedAsyncImage(url: url, imageCache: imageCache) { image in
                     image
                         .resizable()
                         .aspectRatio(contentMode: .fill)
@@ -346,6 +349,7 @@ struct CompactQuotedTweetView: View {
 }
 
 #Preview("Default States") {
+    let imageCache = ImageCache()
     ZStack {
         Color(.systemBackground).ignoresSafeArea()
         ScrollView{
@@ -353,7 +357,7 @@ struct CompactQuotedTweetView: View {
                 Spacer()
 
                 PrimaryContentBlock(
-                    profileImageUrl: nil,  // Will show X icon as fallback
+                    profileImageUrl: nil,
                     displayName: "Elon Musk",
                     username: "elonmusk",
                     text: "Just had a great conversation about the future of AI and space exploration. The possibilities are endless when you combine these technologies!",
@@ -361,12 +365,13 @@ struct CompactQuotedTweetView: View {
                     metrics: TweetMetrics(likes: 12500, retweets: 3400, views: 150000),
                     tweetUrl: "https://twitter.com/elonmusk/status/1234567890",
                     retweeterName: nil,
-                    quotedTweet: nil
+                    quotedTweet: nil,
+                    imageCache: imageCache
                 )
 
 
                 PrimaryContentBlock(
-                    profileImageUrl: nil,  // Will show X icon as fallback
+                    profileImageUrl: nil,
                     displayName: "Elon Musk",
                     username: "elonmusk",
                     text: "Just had a great conversation about the future of AI and space exploration. The possibilities are endless when you combine these technologies!",
@@ -374,14 +379,15 @@ struct CompactQuotedTweetView: View {
                     metrics: TweetMetrics(likes: 12500, retweets: 3400, views: 150000),
                     tweetUrl: "https://twitter.com/elonmusk/status/1234567890",
                     retweeterName: "John Doe",
-                    quotedTweet: nil
+                    quotedTweet: nil,
+                    imageCache: imageCache
                 )
 
 
 
 
                 PrimaryContentBlock(
-                    profileImageUrl: nil,  // Will show X icon as fallback
+                    profileImageUrl: nil,
                     displayName: "Elon Musk",
                     username: "elonmusk",
                     text: "Just had a great conversation about the future of AI and space exploration. The possibilities are endless when you combine these technologies! Just had a great conversation about the future of AI. Just had a great conversation about the future of AI",
@@ -389,7 +395,8 @@ struct CompactQuotedTweetView: View {
                     metrics: TweetMetrics(likes: 12500, retweets: 3400, views: 150000),
                     tweetUrl: "https://twitter.com/elonmusk/status/1234567890",
                     retweeterName: nil,
-                    quotedTweet: nil
+                    quotedTweet: nil,
+                    imageCache: imageCache
                 )
 
 
@@ -399,6 +406,7 @@ struct CompactQuotedTweetView: View {
 }
 
 #Preview("Media Grid - Loading State") {
+    let imageCache = ImageCache()
     ZStack {
         Color(.systemBackground).ignoresSafeArea()
         ScrollView {
@@ -412,7 +420,7 @@ struct CompactQuotedTweetView: View {
                         XMedia(
                             media_key: "1",
                             type: "photo",
-                            url: "https://httpstat.us/200?sleep=5000", // Slow loading URL
+                            url: "https://httpstat.us/200?sleep=5000",
                             preview_image_url: nil,
                             width: 1200,
                             height: 800
@@ -437,7 +445,8 @@ struct CompactQuotedTweetView: View {
                     metrics: TweetMetrics(likes: 5400, retweets: 1200, views: 45000),
                     tweetUrl: "https://twitter.com/technews/status/1234567891",
                     retweeterName: nil,
-                    quotedTweet: nil
+                    quotedTweet: nil,
+                    imageCache: imageCache
                 )
             }
             .padding(.vertical)
@@ -446,6 +455,7 @@ struct CompactQuotedTweetView: View {
 }
 
 #Preview("Media Grid - Failure State") {
+    let imageCache = ImageCache()
     ZStack {
         Color(.systemBackground).ignoresSafeArea()
         ScrollView {
@@ -492,7 +502,8 @@ struct CompactQuotedTweetView: View {
                     metrics: TweetMetrics(likes: 8900, retweets: 2100, views: 67000),
                     tweetUrl: "https://twitter.com/photoexample/status/1234567892",
                     retweeterName: nil,
-                    quotedTweet: nil
+                    quotedTweet: nil,
+                    imageCache: imageCache
                 )
 
                 PrimaryContentBlock(
@@ -513,7 +524,8 @@ struct CompactQuotedTweetView: View {
                     metrics: TweetMetrics(likes: 3200, retweets: 450, views: 28000),
                     tweetUrl: "https://twitter.com/digitalartist/status/1234567893",
                     retweeterName: nil,
-                    quotedTweet: nil
+                    quotedTweet: nil,
+                    imageCache: imageCache
                 )
             }
             .padding(.vertical)
@@ -522,6 +534,7 @@ struct CompactQuotedTweetView: View {
 }
 
 #Preview("Media Grid - Success State") {
+    let imageCache = ImageCache()
     ZStack {
         Color(.systemBackground).ignoresSafeArea()
         ScrollView {
@@ -568,7 +581,8 @@ struct CompactQuotedTweetView: View {
                     metrics: TweetMetrics(likes: 15600, retweets: 4200, views: 125000),
                     tweetUrl: "https://twitter.com/sampleuser/status/1234567894",
                     retweeterName: nil,
-                    quotedTweet: nil
+                    quotedTweet: nil,
+                    imageCache: imageCache
                 )
             }
             .padding(.vertical)

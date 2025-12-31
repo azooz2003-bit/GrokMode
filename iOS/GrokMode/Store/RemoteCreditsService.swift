@@ -9,9 +9,11 @@ import Foundation
 internal import os
 
 actor RemoteCreditsService {
-    static let shared = RemoteCreditsService()
+    private let appAttestService: AppAttestService
 
-    private init() {}
+    init(appAttestService: AppAttestService) {
+        self.appAttestService = appAttestService
+    }
 
     func syncTransactions(_ transactions: [TransactionSyncRequest]) async throws -> TransactionSyncResponse {
         var request = URLRequest(url: Config.transactionSyncURL)
@@ -21,7 +23,7 @@ actor RemoteCreditsService {
         let requestBody = ["transactions": transactions]
         request.httpBody = try JSONEncoder().encode(requestBody)
 
-        try await request.addAppAttestHeaders()
+        try await request.addAppAttestHeaders(appAttestService: appAttestService)
 
         var lastError: Error?
         for attempt in 1...3 {
@@ -65,7 +67,7 @@ actor RemoteCreditsService {
         let requestBody = UsageTrackRequest(userId: userId, service: service, usage: usage)
         request.httpBody = try JSONEncoder().encode(requestBody)
 
-        try await request.addAppAttestHeaders()
+        try await request.addAppAttestHeaders(appAttestService: appAttestService)
 
         // NO retry - fail fast to stop session
         let (data, response) = try await URLSession.shared.data(for: request)
@@ -97,7 +99,7 @@ actor RemoteCreditsService {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
 
-        try await request.addAppAttestHeaders()
+        try await request.addAppAttestHeaders(appAttestService: appAttestService)
 
         var lastError: Error?
         for attempt in 1...2 {

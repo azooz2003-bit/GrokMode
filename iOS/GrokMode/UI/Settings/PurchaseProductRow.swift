@@ -63,5 +63,12 @@ struct PurchaseProductRow: View {
 }
 
 #Preview {
-    SettingsView(onLogout: {})
+    let appAttestService = AppAttestService()
+    let creditsService = RemoteCreditsService(appAttestService: appAttestService)
+    SettingsView(
+        storeManager: StoreKitManager(creditsService: creditsService),
+        creditsService: creditsService,
+        usageTracker: UsageTracker(creditsService: creditsService),
+        onLogout: {}
+    )
 }

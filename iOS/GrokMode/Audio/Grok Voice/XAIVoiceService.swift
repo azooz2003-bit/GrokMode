@@ -73,14 +73,17 @@ class XAIVoiceService: VoiceService {
     """
     private let sampleRate: XAIConversationEvent.AudioFormatType.SampleRate
 
+    private let appAttestService: AppAttestService
+
     // Callbacks - using abstracted types
     var onConnected: (() -> Void)?
     var onDisconnected: ((Error?) -> Void)?
     var onEvent: ((VoiceEvent) -> Void)?
     var onError: ((Error) -> Void)?
 
-    init(sessionState: SessionState, sampleRate: XAIConversationEvent.AudioFormatType.SampleRate = .twentyFourKHz) {
+    init(sessionState: SessionState, appAttestService: AppAttestService, sampleRate: XAIConversationEvent.AudioFormatType.SampleRate = .twentyFourKHz) {
         self.sessionState = sessionState
+        self.appAttestService = appAttestService
         self.sampleRate = sampleRate
         self.urlSession = URLSession(configuration: .default)
     }
@@ -178,7 +181,7 @@ class XAIVoiceService: VoiceService {
 
         let requestBody = ["expires_after": ["seconds": 300]]
         request.httpBody = try JSONEncoder().encode(requestBody)
-        try await request.addAppAttestHeaders()
+        try await request.addAppAttestHeaders(appAttestService: appAttestService)
 
         #if DEBUG
         AppLogger.network.debug("Token request URL: \(self.sessionURL.absoluteString)")

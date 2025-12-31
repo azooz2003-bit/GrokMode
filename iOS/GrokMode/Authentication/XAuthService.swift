@@ -65,7 +65,8 @@ public actor XAuthService {
         return Bundle.main.infoDictionary?["X_CLIENT_ID"] as? String ?? ""
     }
 
-    private let keychain = KeychainHelper()
+    private let keychain = KeychainHelper.shared
+    private let appAttestService: AppAttestService
     private let tokenKey = "x_user_access_token"
     private let refreshTokenKey = "x_user_refresh_token"
     private let handleKey = "x_user_handle"
@@ -81,12 +82,13 @@ public actor XAuthService {
 
     var onTokenRefreshed: (() -> Void)?
 
-    init(authPresentationProvider: AuthPresentationProvider) {
+    init(authPresentationProvider: AuthPresentationProvider, appAttestService: AppAttestService) {
         // Create AsyncStream using makeStream() for Swift 6 concurrency safety
         let (stream, continuation) = AsyncStream<AuthState>.makeStream()
         self.authStateStream = stream
         self.stateContinuation = continuation
         self.presentationProvider = authPresentationProvider
+        self.appAttestService = appAttestService
     }
 
     func checkStatus() async {
@@ -213,7 +215,7 @@ public actor XAuthService {
 
         while currentAttempt <= maxRetries {
             do {
-                try await request.addAppAttestHeaders(isRetry: isRetry)
+                try await request.addAppAttestHeaders(appAttestService: appAttestService, isRetry: isRetry)
 
                 let (responseData, response) = try await URLSession.shared.data(for: request)
 
@@ -226,7 +228,7 @@ public actor XAuthService {
 
                 if urlResponse.statusCode == 403 && currentAttempt < maxRetries {
                     AppLogger.auth.warning("Attestation rejected (403), clearing and retrying...")
-                    await URLRequest.handleAttestationExpired()
+                    await URLRequest.handleAttestationExpired(appAttestService: appAttestService)
                     isRetry = true
                     currentAttempt += 1
                     continue
@@ -373,7 +375,7 @@ public actor XAuthService {
         ]
 
         request.httpBody = try? JSONSerialization.data(withJSONObject: bodyParams)
-        try await request.addAppAttestHeaders()
+        try await request.addAppAttestHeaders(appAttestService: appAttestService)
 
         do {
             let (data, response) = try await URLSession.shared.data(for: request)

@@ -7,9 +7,11 @@ import Foundation
 import Security
 
 actor KeychainHelper {
+    static let shared = KeychainHelper()
+
     private let service: String
 
-    init(service: String = Bundle.main.bundleIdentifier ?? "com.grokmode.app") {
+    private init(service: String = Bundle.main.bundleIdentifier ?? "com.grokmode.app") {
         self.service = service
     }
 

@@ -8,7 +8,16 @@
 import SwiftUI
 
 struct UsageDashboardView: View {
-    @State private var tracker = UsageTracker.shared
+    @Bindable var tracker: UsageTracker
+
+    let currencyFormatter: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.currencyCode = "USD"
+        formatter.minimumFractionDigits = 2
+        formatter.maximumFractionDigits = 4
+        return formatter
+    }()
 
     var body: some View {
         NavigationStack {
@@ -172,15 +181,12 @@ struct UsageDashboardView: View {
     }
 
     private func formatCurrency(_ value: Decimal) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.currencyCode = "USD"
-        formatter.minimumFractionDigits = 2
-        formatter.maximumFractionDigits = 4
-        return formatter.string(from: value as NSDecimalNumber) ?? "$0.00"
+        return currencyFormatter.string(from: value as NSDecimalNumber) ?? "$0.00"
     }
 }
 
 #Preview {
-    UsageDashboardView()
+    let appAttestService = AppAttestService()
+    let creditsService = RemoteCreditsService(appAttestService: appAttestService)
+    UsageDashboardView(tracker: UsageTracker(creditsService: creditsService))
 }

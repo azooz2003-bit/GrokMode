@@ -18,15 +18,15 @@ enum AppAttestError: Error {
 }
 
 actor AppAttestService {
-    static let shared = AppAttestService()
-
     private let service = DCAppAttestService.shared
-    private let keychain = KeychainHelper()
+    private let keychain = KeychainHelper.shared
     private let keyIdKey = "app_attest_key_id"
 
     var isSupported: Bool {
         service.isSupported
     }
+
+    init() {}
 
     func getOrCreateAttestedKey() async throws -> String {
         if let existingKeyId = await keychain.getString(for: keyIdKey) {
@@ -79,7 +79,8 @@ actor AppAttestService {
 
     #if DEBUG
     static func clearAttestationForDebug() async {
-        await shared.clearAttestation()
+        let service = AppAttestService()
+        await service.clearAttestation()
     }
     #endif
 

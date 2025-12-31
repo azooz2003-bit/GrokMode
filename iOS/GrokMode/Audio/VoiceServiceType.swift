@@ -40,12 +40,12 @@ enum VoiceServiceType: String, CaseIterable, Identifiable {
     }
 
     /// Creates the appropriate voice service instance
-    func createService(sessionState: SessionState) -> VoiceService {
+    func createService(sessionState: SessionState, appAttestService: AppAttestService, storeManager: StoreKitManager, usageTracker: UsageTracker) -> VoiceService {
         switch self {
         case .xai:
-            return XAIVoiceService(sessionState: sessionState, sampleRate: .twentyFourKHz)
+            return XAIVoiceService(sessionState: sessionState, appAttestService: appAttestService, sampleRate: .twentyFourKHz)
         case .openai:
-            return OpenAIVoiceService(sessionState: sessionState, sampleRate: 24000)
+            return OpenAIVoiceService(sessionState: sessionState, appAttestService: appAttestService, storeManager: storeManager, usageTracker: usageTracker, sampleRate: 24000)
         }
     }
 }

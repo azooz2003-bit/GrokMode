@@ -30,10 +30,6 @@ enum AppLogger {
     }
 
     /// Logs sensitive data only in DEBUG mode
-    /// - Parameters:
-    ///   - logger: The logger to use
-    ///   - level: The log level
-    ///   - message: The message containing sensitive data
     static func logSensitive(
         _ logger: Logger,
         level: OSLogType = .debug,
@@ -42,7 +38,6 @@ enum AppLogger {
         #if DEBUG
         logger.log(level: level, "\(message, privacy: .private)")
         #else
-        // In release, log that sensitive data was omitted
         logger.log(level: level, "[Sensitive data omitted]")
         #endif
     }
@@ -63,9 +58,6 @@ enum AppLogger {
         return "\(prefix)...\(suffix)"
     }
 
-    /// Pretty prints JSON data for logging
-    /// - Parameter data: JSON data to format
-    /// - Returns: Pretty-printed JSON string, or original data as string if formatting fails
     static func prettyJSON(_ data: Data) -> String {
         guard let json = try? JSONSerialization.jsonObject(with: data),
               let prettyData = try? JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys]),
@@ -75,9 +67,6 @@ enum AppLogger {
         return prettyString
     }
 
-    /// Pretty prints JSON string for logging
-    /// - Parameter jsonString: JSON string to format
-    /// - Returns: Pretty-printed JSON string, or original string if formatting fails
     static func prettyJSON(_ jsonString: String) -> String {
         guard let data = jsonString.data(using: .utf8) else {
             return jsonString

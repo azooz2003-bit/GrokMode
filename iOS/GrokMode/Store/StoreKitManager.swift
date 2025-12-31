@@ -11,9 +11,7 @@ internal import os
 
 @Observable
 final class StoreKitManager {
-    static let shared = StoreKitManager()
-
-    private let creditsService = RemoteCreditsService.shared
+    private let creditsService: RemoteCreditsService
     private let appAccountTokenKey = "app_account_token"
     private let iCloudStore = NSUbiquitousKeyValueStore.default
 
@@ -24,7 +22,9 @@ final class StoreKitManager {
     var activeSubscriptions: [Product] = []
     var creditBalance: CreditBalance?
 
-    private init() {}
+    init(creditsService: RemoteCreditsService) {
+        self.creditsService = creditsService
+    }
 
     func getOrCreateAppAccountToken() async throws -> UUID {
         // Check iCloud (source of truth - tied to Apple ID)

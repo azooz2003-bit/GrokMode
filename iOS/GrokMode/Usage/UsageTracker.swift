@@ -12,7 +12,7 @@ internal import os
 /// Tracks usage and costs across all services
 @Observable
 class UsageTracker {
-    static let shared = UsageTracker()
+    private let creditsService: RemoteCreditsService
 
     var grokVoiceUsage = GrokVoiceUsage()
     var openAIUsage = OpenAIUsage()
@@ -23,7 +23,8 @@ class UsageTracker {
         grokVoiceUsage.totalCost + openAIUsage.totalCost + xAPIUsage.totalCost
     }
 
-    private init() {
+    init(creditsService: RemoteCreditsService) {
+        self.creditsService = creditsService
         loadUsage()
     }
 
@@ -108,7 +109,7 @@ class UsageTracker {
                 cachedTextInputTokens: cachedTextInputTokens
             ))
 
-            let response = try await RemoteCreditsService.shared.trackUsage(
+            let response = try await creditsService.trackUsage(
                 userId: userId,
                 service: "openai_realtime",
                 usage: usage
@@ -137,7 +138,7 @@ class UsageTracker {
         do {
             let usage = UsageDetails.grokVoice(GrokVoiceUsageDetails(minutes: minutes))
 
-            let response = try await RemoteCreditsService.shared.trackUsage(
+            let response = try await creditsService.trackUsage(
                 userId: userId,
                 service: "grok_voice",
                 usage: usage
@@ -196,7 +197,7 @@ class UsageTracker {
                 userInteractionCreates: userInteractionCreates
             ))
 
-            let response = try await RemoteCreditsService.shared.trackUsage(
+            let response = try await creditsService.trackUsage(
                 userId: userId,
                 service: "x_api",
                 usage: usage

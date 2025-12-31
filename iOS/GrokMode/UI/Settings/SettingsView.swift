@@ -8,9 +8,18 @@ import StoreKit
 
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
-    @State private var viewModel = StoreViewModel()
+    @State private var viewModel: StoreViewModel
 
+    let storeManager: StoreKitManager
+    let usageTracker: UsageTracker
     let onLogout: () async -> Void
+
+    init(storeManager: StoreKitManager, creditsService: RemoteCreditsService, usageTracker: UsageTracker, onLogout: @escaping () async -> Void) {
+        self.storeManager = storeManager
+        self.usageTracker = usageTracker
+        self.onLogout = onLogout
+        self._viewModel = State(initialValue: StoreViewModel(storeManager: storeManager, creditsService: creditsService))
+    }
 
     var body: some View {
         NavigationStack {
@@ -69,7 +78,7 @@ struct SettingsView: View {
 
                     #if DEBUG
                     NavigationLink("Usage Dashboard") {
-                        UsageDashboardView()
+                        UsageDashboardView(tracker: usageTracker)
                     }
                     #endif
                 }
@@ -125,7 +134,7 @@ struct SettingsView: View {
                 }
             }
             .task {
-                await StoreKitManager.shared.restoreAllTransactions()
+                await storeManager.restoreAllTransactions()
 
                 await viewModel.loadProductsAndBalance()
             }
@@ -134,5 +143,12 @@ struct SettingsView: View {
 }
 
 #Preview {
-    SettingsView(onLogout: {})
+    let appAttestService = AppAttestService()
+    let creditsService = RemoteCreditsService(appAttestService: appAttestService)
+    SettingsView(
+        storeManager: StoreKitManager(creditsService: creditsService),
+        creditsService: creditsService,
+        usageTracker: UsageTracker(creditsService: creditsService),
+        onLogout: {}
+    )
 }

@@ -16,9 +16,13 @@ enum HTTPMethod: String {
 actor XToolOrchestrator {
     private var baseURL: URL { Config.baseXURL }
     private let authService: XAuthService
+    private let storeManager: StoreKitManager
+    private let usageTracker: UsageTracker
 
-    init(authService: XAuthService) {
+    init(authService: XAuthService, storeManager: StoreKitManager, usageTracker: UsageTracker) {
         self.authService = authService
+        self.storeManager = storeManager
+        self.usageTracker = usageTracker
     }
 
     // MARK: - Authentication
@@ -872,8 +876,8 @@ actor XToolOrchestrator {
 
         // Register usage with server if operation was determined
         if let operation = operation {
-            let userId = try await StoreKitManager.shared.getOrCreateAppAccountToken().uuidString
-            let result = await UsageTracker.shared.trackAndRegisterXAPIUsage(
+            let userId = try await storeManager.getOrCreateAppAccountToken().uuidString
+            let result = await usageTracker.trackAndRegisterXAPIUsage(
                 operation: operation,
                 count: count,
                 userId: userId

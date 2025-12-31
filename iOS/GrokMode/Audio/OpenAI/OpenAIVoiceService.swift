@@ -81,14 +81,21 @@ class OpenAIVoiceService: VoiceService {
     private var currentAssistantItemId: String?
     private var currentAudioDurationMs: Int = 0
 
+    private let appAttestService: AppAttestService
+    private let storeManager: StoreKitManager
+    private let usageTracker: UsageTracker
+
     // Callbacks - using abstracted types
     var onConnected: (() -> Void)?
     var onDisconnected: ((Error?) -> Void)?
     var onEvent: ((VoiceEvent) -> Void)?
     var onError: ((Error) -> Void)?
 
-    init(sessionState: SessionState, sampleRate: Int = 24000) {
+    init(sessionState: SessionState, appAttestService: AppAttestService, storeManager: StoreKitManager, usageTracker: UsageTracker, sampleRate: Int = 24000) {
         self.sessionState = sessionState
+        self.appAttestService = appAttestService
+        self.storeManager = storeManager
+        self.usageTracker = usageTracker
         self.sampleRate = sampleRate
         self.urlSession = URLSession(configuration: .default)
     }
@@ -202,7 +209,7 @@ class OpenAIVoiceService: VoiceService {
         ]
 
         request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
-        try await request.addAppAttestHeaders()
+        try await request.addAppAttestHeaders(appAttestService: appAttestService)
 
         #if DEBUG
         AppLogger.network.debug("Token request URL: \(self.tokenURL.absoluteString)")
@@ -599,8 +606,8 @@ class OpenAIVoiceService: VoiceService {
 
                 Task { @MainActor in
                     do {
-                        let userId = try await StoreKitManager.shared.getOrCreateAppAccountToken().uuidString
-                        let result = await UsageTracker.shared.trackAndRegisterOpenAIUsage(
+                        let userId = try await storeManager.getOrCreateAppAccountToken().uuidString
+                        let result = await usageTracker.trackAndRegisterOpenAIUsage(
                             audioInputTokens: audioInputTokens,
                             audioOutputTokens: audioOutputTokens,
                             textInputTokens: textInputTokens,
