@@ -175,30 +175,29 @@ struct PrimaryContentBlock: View {
     @ViewBuilder
     private func imageView() -> some View {
         if let url = highQualityProfileImageUrl(profileImageUrl) {
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case .empty:
-                    ProgressView()
-                        .frame(width: 50, height: 50)
-                case .success(let image):
-                    image
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: 50, height: 50)
-                        .clipShape(Circle())
-                case .failure:
+            CachedAsyncImage(url: url) { image in
+                image
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 50, height: 50)
+                    .clipShape(Circle())
+            } placeholder: {
+                ProgressView()
+                    .frame(width: 50, height: 50)
+            } errorPlaceholder: { error in
+                ZStack {
                     Image(sourceIcon)
                         .resizable()
                         .scaledToFill()
                         .frame(width: 50, height: 50)
                         .clipShape(Circle())
-                @unknown default:
-                    Image(sourceIcon)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: 50, height: 50)
-                        .clipShape(Circle())
+                        .opacity(0.3)
+
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 16))
+                        .foregroundColor(.red.opacity(0.8))
                 }
+                .frame(width: 50, height: 50)
             }
         } else {
             Image(sourceIcon)
@@ -216,49 +215,30 @@ struct PrimaryContentBlock: View {
         let spacing: CGFloat = 8
 
         LazyVGrid(columns: gridItems, spacing: spacing) {
-            ForEach(Array(mediaItems.prefix(4).enumerated()), id: \.offset) { index, media in
+            ForEach(Array(mediaItems.prefix(4)), id: \.id) { media in
                 let urlString = media.displayUrl
+                let ratio = aspectRatio(forMedia: media)
 
                 if let urlString, let url = URL(string: urlString) {
-                    AsyncImage(url: url) { phase in
-                        switch phase {
-                        case .empty:
-                            mediaPlaceholderBackground()
-                                .overlay {
-                                    ProgressView()
-                                        .tint(.white)
-                                }
-                        case .success(let image):
-                            image
-                                .resizable()
-                        case .failure(let error):
-                            mediaPlaceholderBackground()
-                                .overlay {
-                                    VStack {
-                                        Image(systemName: "exclamationmark.triangle.fill")
-                                            .resizable()
-                                            .frame(width: 30, height: 30)
-                                        Text(error.localizedDescription)
-                                            .multilineTextAlignment(.center)
-                                            .font(.caption2)
-                                            .lineLimit(2)
-                                            .padding(.horizontal, 8)
-                                    }
-                                    .foregroundStyle(.white.opacity(0.6))
-                                }
-                        @unknown default:
-                            fatalError()
-                        }
+                    CachedAsyncImage(url: url) { image in
+                        image
+                            .resizable()
+                            .aspectRatio(ratio, contentMode: .fit)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                    } placeholder: {
+                        mediaPlaceholderBackground()
+                            .aspectRatio(ratio, contentMode: .fit)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .overlay {
+                                ProgressView()
+                                    .tint(.white)
+                            }
+                    } errorPlaceholder: { error in
+                        mediaErrorView(error.localizedDescription, aspectRatio: ratio)
                     }
-                    .aspectRatio(aspectRatio(forMedia: media), contentMode: .fit)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .frame(maxWidth: .infinity)
                 } else {
-                    mediaPlaceholderBackground()
-                        .overlay {
-                            Image("exclamationmark.triangle.fill")
-                                .resizable()
-                                .frame(width: 30, height: 30)
-                        }
+                    mediaErrorView("Bad URL", aspectRatio: ratio)
                 }
             }
         }
@@ -268,6 +248,26 @@ struct PrimaryContentBlock: View {
     private func mediaPlaceholderBackground() -> some View {
         RoundedRectangle(cornerRadius: 12)
             .foregroundStyle(.gray.opacity(0.4))
+    }
+
+    @ViewBuilder
+    private func mediaErrorView(_ description: String, aspectRatio: CGFloat) -> some View {
+        mediaPlaceholderBackground()
+            .aspectRatio(aspectRatio, contentMode: .fit)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .overlay {
+                VStack {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .resizable()
+                        .frame(width: 30, height: 30)
+                    Text(description)
+                        .multilineTextAlignment(.center)
+                        .font(.caption2)
+                        .lineLimit(2)
+                        .padding(.horizontal, 8)
+                }
+                .foregroundStyle(.white.opacity(0.6))
+            }
     }
 
     private func aspectRatio(forMedia media: XMedia) -> CGFloat {
@@ -304,25 +304,33 @@ struct CompactQuotedTweetView: View {
                 .lineLimit(3)
                 .fixedSize(horizontal: false, vertical: true)
             if let media = media, let firstMedia = media.first, let urlString = firstMedia.displayUrl, let url = URL(string: urlString) {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .frame(maxWidth: .infinity, maxHeight: 120)
-                            .clipped()
-                            .cornerRadius(8)
-                    case .empty:
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color.gray.opacity(0.2))
-                            .frame(maxWidth: .infinity, maxHeight: 120)
-                            .overlay { ProgressView() }
-                    case .failure:
-                        EmptyView()
-                    @unknown default:
-                        EmptyView()
-                    }
+                CachedAsyncImage(url: url) { image in
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(maxWidth: .infinity, maxHeight: 120)
+                        .clipped()
+                        .cornerRadius(8)
+                } placeholder: {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.gray.opacity(0.2))
+                        .frame(maxWidth: .infinity, maxHeight: 120)
+                        .overlay { ProgressView() }
+                } errorPlaceholder: { error in
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.gray.opacity(0.2))
+                        .frame(maxWidth: .infinity, maxHeight: 120)
+                        .overlay {
+                            VStack(spacing: 4) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .font(.system(size: 16))
+                                    .foregroundColor(.red.opacity(0.8))
+                                Text(error.localizedDescription.prefix(30))
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                                    .lineLimit(1)
+                            }
+                        }
                 }
             }
         }

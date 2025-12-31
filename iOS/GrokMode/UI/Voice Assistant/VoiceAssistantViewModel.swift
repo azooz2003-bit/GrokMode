@@ -114,9 +114,6 @@ class VoiceAssistantViewModel: NSObject {
                 self?.stopSession()
 
                 self?.voiceSessionState = .error(error.localizedDescription)
-                #if DEBUG
-                self?.addSystemMessage("Error: \(error.localizedDescription)")
-                #endif
             }
         }
 
@@ -139,7 +136,6 @@ class VoiceAssistantViewModel: NSObject {
         }
 
         do {
-            // Execute user profile fetch and XAI connection in parallel
             #if DEBUG
             AppLogger.network.debug("===== USER PROFILE REQUEST =====")
             #endif
@@ -238,7 +234,6 @@ class VoiceAssistantViewModel: NSObject {
 
             guard !Task.isCancelled else { return }
 
-            // Proceed with connection
             await connect()
 
             guard !Task.isCancelled else { return }
@@ -303,7 +298,6 @@ class VoiceAssistantViewModel: NSObject {
             // Track any remaining partial minute for Grok voice sessions
             trackPartialUsageIfNeeded()
 
-            // Stop session duration timer
             sessionTimer?.invalidate()
             sessionTimer = nil
             sessionStartTime = nil

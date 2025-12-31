@@ -89,13 +89,13 @@ struct VoiceAssistantView: View {
             }
             .onAppear {
                 viewModel.checkPermissions()
-                hapticGenerator.prepare() // Prepare haptic generator for reduced latency
+                hapticGenerator.prepare()
             }
             .onChange(of: viewModel.currentAudioLevel) { oldValue, newValue in
                 animator.updateAudioLevel(CGFloat(newValue))
 
                 withAnimation {
-                    isAnimating = newValue > 0.1 // Consider animating if level is above threshold
+                    isAnimating = newValue > 0.1
                 }
             }
             .onChange(of: viewModel.voiceSessionState) { oldState, newState in
@@ -172,13 +172,7 @@ struct VoiceAssistantView: View {
                 }
             }
             .listStyle(.plain)
-            .onChange(of: viewModel.conversationItems.count) { _, _ in
-                if let lastItem = viewModel.conversationItems.last {
-                    withAnimation {
-                        scrollProxy.scrollTo(lastItem.id, anchor: .bottom)
-                    }
-                }
-            }
+            .onChange(of: viewModel.conversationItems.count) { _, _ in }
         }
     }
 
