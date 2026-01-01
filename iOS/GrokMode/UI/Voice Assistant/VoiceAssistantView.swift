@@ -56,7 +56,7 @@ struct VoiceAssistantView: View {
             .toolbar {
                   ToolbarItem(placement: .principal) {
                       VStack {
-                          Text("Voice Service")
+                          Text("Voice Model")
                               .font(.subheadline)
                               .foregroundStyle(Color(.label).opacity(0.6))
                               .padding(.top, 5)
@@ -76,16 +76,15 @@ struct VoiceAssistantView: View {
 
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu("Voice Selection", systemImage: "mouth.fill") {
-                        Section("Select Voice") {
-                            Picker("Voice", selection: $viewModel.selectedVoice) {
-                                ForEach(viewModel.selectedServiceType.availableVoices) { voice in
-                                    Text(voice.displayName)
-                                        .tag(voice)
-                                }
+                        Picker("Select Voice", selection: $viewModel.selectedVoice) {
+                            ForEach(viewModel.selectedServiceType.availableVoices) { voice in
+                                Text(voice.displayName)
+                                    .tag(voice)
                             }
-                            .pickerStyle(.inline)
-                            .disabled(viewModel.isSessionActivated)
                         }
+                        .pickerStyle(.inline)
+                        .disabled(viewModel.isSessionActivated)
+                        .labelsVisibility(.visible)
                     }
                 }
 
@@ -232,11 +231,12 @@ struct VoiceAssistantView: View {
     @ViewBuilder
     private var voiceServicePicker: some View {
         Menu {
-            Picker("", selection: $viewModel.selectedServiceType) {
+            Picker("Select Model", selection: $viewModel.selectedServiceType) {
                 Text(VoiceServiceType.openai.displayName).tag(VoiceServiceType.openai)
                 Text(VoiceServiceType.xai.displayName).tag(VoiceServiceType.xai)
             }
             .disabled(viewModel.isSessionActivated)
+            .labelsVisibility(.visible)
         } label: {
             HStack(spacing: 4) {
                 Image(ImageResource(name: viewModel.selectedServiceType.iconName, bundle: .main))

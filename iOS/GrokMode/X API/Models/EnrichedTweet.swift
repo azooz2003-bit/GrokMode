@@ -29,12 +29,11 @@ struct EnrichedTweet: Sendable {
     /// Twitter adds t.co links for media and quoted tweets which are redundant when displayed
     let displayText: String
 
-    /// Initialize from a tweet and response includes
     init(from tweetData: XTweet, includes: XTweetResponse.Includes?) {
         var displayTweet = tweetData
         var retweetInfo: RetweetInfo? = nil
 
-        // Step 1: Handle retweets - unwrap to show original tweet
+        // Handle retweets
         if tweetData.isRetweet,
            let retweetedId = tweetData.retweetedTweetId,
            let originalTweet = includes?.tweets?.first(where: { $0.id == retweetedId }) {
@@ -45,13 +44,13 @@ struct EnrichedTweet: Sendable {
             }
         }
 
-        // Step 2: Resolve author and media for the display tweet
+        // Resolve author and media for the display tweet
         let author = includes?.users?.first { $0.id == displayTweet.author_id }
         let media = displayTweet.attachments?.media_keys?.compactMap { key in
             includes?.media?.first { $0.media_key == key }
         } ?? []
 
-        // Step 3: Handle quoted tweets
+        // Handle quoted tweets
         var quotedTweetInfo: QuotedTweetInfo? = nil
         if displayTweet.isQuoteTweet,
            let quotedId = displayTweet.quotedTweetId,
@@ -67,14 +66,13 @@ struct EnrichedTweet: Sendable {
             )
         }
 
-        // Set properties
         self.tweet = displayTweet
         self.author = author
         self.media = media
         self.retweetInfo = retweetInfo
         self.quotedTweet = quotedTweetInfo
 
-        // Remove trailing t.co link (computed once)
+        // Remove trailing t.co link
         self.displayText = displayTweet.text.replacingOccurrences(
             of: #"\s*https://t\.co/\w+\s*$"#,
             with: "",
