@@ -14,6 +14,7 @@ final class StoreKitManager {
     private let creditsService: RemoteCreditsService
     private let appAccountTokenKey = "app_account_token"
     private let iCloudStore = NSUbiquitousKeyValueStore.default
+    private var appAccountToken: UUID?
 
     private var transactionObserverTask: Task<Void, Never>?
     private var restoreTask: Task<Void, Never>?
@@ -26,10 +27,16 @@ final class StoreKitManager {
         self.creditsService = creditsService
     }
 
-    func getOrCreateAppAccountToken() async throws -> UUID {
+    func getOrCreateAppAccountToken() async -> UUID {
+        if let appAccountToken {
+            AppLogger.store.info("Retrieved appAccountToken from memory")
+            return appAccountToken
+        }
+        
         // Check iCloud (source of truth - tied to Apple ID)
         if let iCloudUUID = iCloudStore.string(forKey: appAccountTokenKey),
            let uuid = UUID(uuidString: iCloudUUID) {
+            self.appAccountToken = uuid
             AppLogger.store.info("Retrieved appAccountToken from iCloud")
             return uuid
         }
@@ -42,6 +49,7 @@ final class StoreKitManager {
                 // Save to iCloud for future use
                 iCloudStore.set(appAccountToken.uuidString, forKey: appAccountTokenKey)
                 iCloudStore.synchronize()
+                self.appAccountToken = appAccountToken
                 return appAccountToken
             }
         }
@@ -50,6 +58,7 @@ final class StoreKitManager {
         let newUUID = UUID()
         iCloudStore.set(newUUID.uuidString, forKey: appAccountTokenKey)
         iCloudStore.synchronize()
+        self.appAccountToken = newUUID
         AppLogger.store.info("Generated new appAccountToken for first-time user")
         return newUUID
     }
@@ -68,7 +77,7 @@ final class StoreKitManager {
     func purchase(_ product: Product) async throws -> Transaction {
         AppLogger.store.info("Initiating purchase for product: \(product.id)")
 
-        let appAccountToken = try await getOrCreateAppAccountToken()
+        let appAccountToken = await getOrCreateAppAccountToken()
 
         let result = try await product.purchase(options: [
             .appAccountToken(appAccountToken)
@@ -204,7 +213,7 @@ final class StoreKitManager {
     private func syncTransactionsBatch(_ transactions: [Transaction]) async throws {
         guard !transactions.isEmpty else { return }
 
-        let appAccountToken = try await getOrCreateAppAccountToken()
+        let appAccountToken = await getOrCreateAppAccountToken()
 
         let requests = transactions.map { $0.toSyncRequest(appAccountToken: appAccountToken) }
 
