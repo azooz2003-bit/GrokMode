@@ -74,6 +74,7 @@ class XAIVoiceService: VoiceService {
     private let sampleRate: XAIConversationEvent.AudioFormatType.SampleRate
 
     private let appAttestService: AppAttestService
+    private let authService: XAuthService
 
     // Callbacks - using abstracted types
     var onConnected: (() -> Void)?
@@ -81,9 +82,10 @@ class XAIVoiceService: VoiceService {
     var onEvent: ((VoiceEvent) -> Void)?
     var onError: ((Error) -> Void)?
 
-    init(sessionState: SessionState, appAttestService: AppAttestService, voice: XAIConversationEvent.SessionConfig.Voice = .Rex, sampleRate: XAIConversationEvent.AudioFormatType.SampleRate = .twentyFourKHz) {
+    init(sessionState: SessionState, appAttestService: AppAttestService, authService: XAuthService, voice: XAIConversationEvent.SessionConfig.Voice = .Rex, sampleRate: XAIConversationEvent.AudioFormatType.SampleRate = .twentyFourKHz) {
         self.sessionState = sessionState
         self.appAttestService = appAttestService
+        self.authService = authService
         self.voice = voice
         self.sampleRate = sampleRate
         self.urlSession = URLSession(configuration: .default)
@@ -176,9 +178,12 @@ class XAIVoiceService: VoiceService {
     func getEphemeralToken() async throws -> SessionToken {
         AppLogger.network.info("Requesting ephemeral token")
 
+        let userId = try await authService.requiredUserId
+
         var request = URLRequest(url: sessionURL)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(userId, forHTTPHeaderField: "X-User-Id")
 
         let requestBody = ["expires_after": ["seconds": 300]]
         request.httpBody = try JSONEncoder().encode(requestBody)

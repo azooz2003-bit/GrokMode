@@ -83,7 +83,7 @@ enum VoiceServiceType: String, CaseIterable, Identifiable {
         switch self {
         case .xai:
             let xaiVoice = XAIConversationEvent.SessionConfig.Voice(rawValue: voice.rawValue.capitalized) ?? .Rex
-            return XAIVoiceService(sessionState: sessionState, appAttestService: appAttestService, voice: xaiVoice, sampleRate: .twentyFourKHz)
+            return XAIVoiceService(sessionState: sessionState, appAttestService: appAttestService, authService: authService, voice: xaiVoice, sampleRate: .twentyFourKHz)
         case .openai:
             let openAIVoice = OpenAIVoiceService.Voice(rawValue: voice.rawValue) ?? .coral
             return OpenAIVoiceService(sessionState: sessionState, appAttestService: appAttestService, authService: authService, storeManager: storeManager, usageTracker: usageTracker, voice: openAIVoice, sampleRate: 24000)

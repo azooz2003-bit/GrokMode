@@ -194,9 +194,12 @@ class OpenAIVoiceService: VoiceService {
     func getEphemeralToken() async throws -> SessionToken {
         AppLogger.network.info("Requesting OpenAI ephemeral token")
 
+        let userId = try await authService.requiredUserId
+
         var request = URLRequest(url: tokenURL)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(userId, forHTTPHeaderField: "X-User-Id")
 
         // OpenAI requires session configuration wrapped in "session" key
         let requestBody: [String: Any] = [

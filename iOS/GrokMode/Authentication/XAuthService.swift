@@ -387,10 +387,15 @@ public actor XAuthService {
             throw AuthError.networkError("No refresh token available")
         }
 
+        guard let userId = authState.userId else {
+            throw AuthError.networkError("No user ID available")
+        }
+
         let url = self.refreshURL
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(userId, forHTTPHeaderField: "X-User-Id")
 
         let bodyParams: [String: String] = [
             "refresh_token": refreshToken

@@ -55,5 +55,30 @@
 			"database_id": "089569bf-1055-4fb3-ab87-c391354fdf23",
 			"remote": true
 		}
+	],
+	"durable_objects": {
+		"bindings": [
+			{
+				"name": "USER_TRANSACTION_SYNC_V2",
+				"class_name": "UserTransactionSyncV2"
+			}
+		]
+	},
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_classes": [
+				"UserTransactionSync"
+			]
+		},
+		{
+			"tag": "v2",
+			"new_sqlite_classes": [
+				"UserTransactionSyncV2"
+			],
+			"deleted_classes": [
+				"UserTransactionSync"
+			]
+		}
 	]
 }

@@ -13,8 +13,11 @@ export interface Env {
     BUNDLE_ID: string;
     PRE_LOGIN_RATE_LIMIT: any;
     POST_LOGIN_RATE_LIMIT: any;
+    USER_TRANSACTION_SYNC_V2: DurableObjectNamespace;
     tweety_credits: D1Database;
 }
+
+export { UserTransactionSyncV2 } from './credits/UserTransactionSync';
 
 interface TokenExchangeRequest {
     code: string;
@@ -75,7 +78,6 @@ Promise<Response> {
                 return new Response(`429 Failure – rate limit exceeded for ${url.pathname}`, { status: 429 })
             }
         } else {
-            // Rate limit all other endpoints by user ID
             const userId = request.headers.get('X-User-Id');
             if (!userId) {
                 return new Response('Missing X-User-Id header', { status: 401 })
@@ -285,7 +287,16 @@ fetch('https://api.x.ai/v1/realtime/client_secrets', {
 
         // Credits: Sync transactions (batch)
         if (url.pathname === '/credits/transactions/sync') {
-            return await syncTransactions(request, env);
+            const userId = request.headers.get('X-User-Id');
+            if (!userId) {
+                return new Response(
+                    JSON.stringify({ error: 'Missing X-User-Id header' }),
+                    { status: 400, headers: { 'Content-Type': 'application/json' } }
+                );
+            }
+
+            const stub = env.USER_TRANSACTION_SYNC_V2.getByName(userId);
+            return await stub.fetch(request);
         }
 
         // Credits: Track usage
