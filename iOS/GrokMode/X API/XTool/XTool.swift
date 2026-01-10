@@ -1055,5 +1055,24 @@ enum XTool: String, CaseIterable, Identifiable {
     static func getToolByName(_ name: String) -> XTool? {
         return XTool.allCases.first { $0.name == name }
     }
+
+    /// Tools that are supported and should be exposed to the LLM.
+    /// Excludes Community Notes and Media tools.
+    static var supportedTools: [XTool] {
+        return allCases.filter { tool in
+            switch tool {
+            // Exclude Community Notes tools
+            case .createNote, .deleteNote, .evaluateNote, .getNotesWritten, .getPostsEligibleForNotes:
+                return false
+            // Exclude Media tools
+            case .uploadMedia, .getMediaStatus, .initializeChunkedUpload, .appendChunkedUpload,
+                 .finalizeChunkedUpload, .createMediaMetadata, .getMediaAnalytics:
+                return false
+            // Include all other tools
+            default:
+                return true
+            }
+        }
+    }
 }
 
