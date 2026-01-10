@@ -42,11 +42,11 @@ struct AuthState: Sendable {
 
     static func loadFromKeychain() -> AuthState {
         let keychain = KeychainHelper.shared
-        let token = keychain.unsafeGetString(for: KeychainKeys.tokenKey)
+        let token = keychain.getString(for: KeychainKeys.tokenKey)
 
         if let token = token, !token.isEmpty {
-            let userId = keychain.unsafeGetString(for: KeychainKeys.userIdKey)
-            let handle = keychain.unsafeGetString(for: KeychainKeys.handleKey)
+            let userId = keychain.getString(for: KeychainKeys.userIdKey)
+            let handle = keychain.getString(for: KeychainKeys.handleKey)
             return AuthState(isAuthenticated: true, userId: userId, currentUserHandle: handle)
         } else {
             return AuthState(isAuthenticated: false, userId: nil, currentUserHandle: nil)
@@ -118,11 +118,11 @@ public actor XAuthService {
     }
 
     func checkStatus() async {
-        if let token = await keychain.getString(for: KeychainKeys.tokenKey), !token.isEmpty {
+        if let token = keychain.getString(for: KeychainKeys.tokenKey), !token.isEmpty {
             authState = AuthState(
                 isAuthenticated: true,
-                userId: await keychain.getString(for: KeychainKeys.userIdKey),
-                currentUserHandle: await keychain.getString(for: KeychainKeys.handleKey)
+                userId: keychain.getString(for: KeychainKeys.userIdKey),
+                currentUserHandle: keychain.getString(for: KeychainKeys.handleKey)
             )
         } else {
             authState = AuthState(isAuthenticated: false, userId: nil, currentUserHandle: nil)
@@ -292,10 +292,10 @@ public actor XAuthService {
 
             let expiryDate = Date().addingTimeInterval(TimeInterval(expiresIn))
 
-            try await keychain.save(accessToken, for: KeychainKeys.tokenKey)
-            try await keychain.save(expiryDate, for: KeychainKeys.tokenExpiryKey)
+            try keychain.save(accessToken, for: KeychainKeys.tokenKey)
+            try keychain.save(expiryDate, for: KeychainKeys.tokenExpiryKey)
             if let rt = refreshToken {
-                try await keychain.save(rt, for: KeychainKeys.refreshTokenKey)
+                try keychain.save(rt, for: KeychainKeys.refreshTokenKey)
             }
 
             // This sets authState with isAuthenticated=true + userId atomically
@@ -309,7 +309,7 @@ public actor XAuthService {
 
     private func fetchCurrentUser() async throws {
         // CRITICAL - must succeed to get X user_id for credits system
-        guard let token = await keychain.getString(for: KeychainKeys.tokenKey) else {
+        guard let token = keychain.getString(for: KeychainKeys.tokenKey) else {
             throw AuthError.loginFailed("No access token available")
         }
 
@@ -327,8 +327,8 @@ public actor XAuthService {
         let user = userResponse.data
 
         // Store both user_id (permanent) and username (display) in Keychain
-        try await keychain.save(user.id, for: KeychainKeys.userIdKey)
-        try await keychain.save(user.username, for: KeychainKeys.handleKey)
+        try keychain.save(user.id, for: KeychainKeys.userIdKey)
+        try keychain.save(user.username, for: KeychainKeys.handleKey)
 
         authState = AuthState(
             isAuthenticated: true,
@@ -338,23 +338,23 @@ public actor XAuthService {
     }
 
     public func logout() async {
-        await keychain.delete(KeychainKeys.tokenKey)
-        await keychain.delete(KeychainKeys.refreshTokenKey)
-        await keychain.delete(KeychainKeys.handleKey)
-        await keychain.delete(KeychainKeys.userIdKey)
-        await keychain.delete(KeychainKeys.tokenExpiryKey)
+        keychain.delete(KeychainKeys.tokenKey)
+        keychain.delete(KeychainKeys.refreshTokenKey)
+        keychain.delete(KeychainKeys.handleKey)
+        keychain.delete(KeychainKeys.userIdKey)
+        keychain.delete(KeychainKeys.tokenExpiryKey)
         authState = AuthState(isAuthenticated: false, userId: nil, currentUserHandle: nil)
     }
 
     public func getAccessToken() async -> String? {
-        return await keychain.getString(for: KeychainKeys.tokenKey)
+        return keychain.getString(for: KeychainKeys.tokenKey)
     }
 
     /// Get a valid access token, refreshing if necessary
     /// Returns nil if session expired - UI will automatically show login via state stream
     public func getValidAccessToken() async -> String? {
         // Check if token exists
-        guard let token = await keychain.getString(for: KeychainKeys.tokenKey), !token.isEmpty else {
+        guard let token = keychain.getString(for: KeychainKeys.tokenKey), !token.isEmpty else {
             return nil  // Already logged out, state stream will notify UI
         }
 
@@ -376,7 +376,7 @@ public actor XAuthService {
 
     /// Check if the current token is expired or about to expire
     private func isTokenExpired() async -> Bool {
-        guard let expiryDate = await keychain.getDate(for: KeychainKeys.tokenExpiryKey) else {
+        guard let expiryDate = keychain.getDate(for: KeychainKeys.tokenExpiryKey) else {
             // No expiry date stored, assume expired for safety
             return true
         }
@@ -390,7 +390,7 @@ public actor XAuthService {
     /// Auto-handles token refresh internally
     /// Throws network errors - session expiry is auto-handled via logout
     func refreshAccessToken() async throws -> String {
-        guard let refreshToken = await keychain.getString(for: KeychainKeys.refreshTokenKey) else {
+        guard let refreshToken = keychain.getString(for: KeychainKeys.refreshTokenKey) else {
             // No refresh token - session expired, will be handled by caller
             throw AuthError.networkError("No refresh token available")
         }
@@ -431,10 +431,10 @@ public actor XAuthService {
             let expiryDate = Date().addingTimeInterval(TimeInterval(expiresIn))
 
             // Update stored tokens in Keychain
-            try? await keychain.save(accessToken, for: KeychainKeys.tokenKey)
-            try? await keychain.save(expiryDate, for: KeychainKeys.tokenExpiryKey)
+            try? keychain.save(accessToken, for: KeychainKeys.tokenKey)
+            try? keychain.save(expiryDate, for: KeychainKeys.tokenExpiryKey)
             if let rt = newRefreshToken {
-                try? await keychain.save(rt, for: KeychainKeys.refreshTokenKey)
+                try? keychain.save(rt, for: KeychainKeys.refreshTokenKey)
             }
 
             // Notify that token was refreshed (for logging/debugging)

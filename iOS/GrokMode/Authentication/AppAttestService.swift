@@ -28,7 +28,7 @@ actor AppAttestService {
     init() {}
 
     func getOrCreateAttestedKey() async throws -> String {
-        if let existingKeyId = await keychain.getString(for: KeychainKeys.appAttestKeyId) {
+        if let existingKeyId = keychain.getString(for: KeychainKeys.appAttestKeyId) {
             return existingKeyId
         }
         return try await attestNewKey()
@@ -46,13 +46,13 @@ actor AppAttestService {
         let attestation = try await service.attestKey(keyId, clientDataHash: clientDataHash)
 
         try await verifyAttestation(keyId: keyId, attestation: attestation, challenge: challenge)
-        try await keychain.save(keyId, for: KeychainKeys.appAttestKeyId)
+        try keychain.save(keyId, for: KeychainKeys.appAttestKeyId)
 
         return keyId
     }
 
     func generateAssertion(for request: URLRequest, isRetry: Bool = false) async throws -> (keyId: String, assertion: Data) {
-        guard let keyId = await keychain.getString(for: KeychainKeys.appAttestKeyId) else {
+        guard let keyId = keychain.getString(for: KeychainKeys.appAttestKeyId) else {
             let _ = try await attestNewKey()
             return try await generateAssertion(for: request, isRetry: true)
         }
@@ -73,7 +73,7 @@ actor AppAttestService {
     }
 
     func clearAttestation() async {
-        await keychain.delete(KeychainKeys.appAttestKeyId)
+        keychain.delete(KeychainKeys.appAttestKeyId)
     }
 
     #if DEBUG
