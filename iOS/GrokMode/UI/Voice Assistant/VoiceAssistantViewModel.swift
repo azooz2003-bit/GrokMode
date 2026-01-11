@@ -9,6 +9,7 @@ import SwiftUI
 import AVFoundation
 import Combine
 import OSLog
+import StoreKit
 
 @Observable
 class VoiceAssistantViewModel {
@@ -39,6 +40,7 @@ class VoiceAssistantViewModel {
             UserDefaults.standard.set(selectedVoice.rawValue, forKey: UserDefaultsKey.selectedVoice)
         }
     }
+    var accessBlockedReason: AccessBlockedReason?
 
     // MARK: Session
     @ObservationIgnored private var sessionElapsedTime: TimeInterval = 0
@@ -142,7 +144,13 @@ class VoiceAssistantViewModel {
                 // Stop audio streaming immediately to prevent cascade of errors
                 self?.stopSession()
 
-                self?.voiceSessionState = .error(error.localizedDescription)
+                // Check if error is due to insufficient credits
+                if let voiceError = error as? VoiceServiceError,
+                   case .insufficientCredits = voiceError {
+                    self?.accessBlockedReason = .insufficientCredits
+                } else {
+                    self?.voiceSessionState = .error(error.localizedDescription)
+                }
             }
         }
 
@@ -239,16 +247,14 @@ class VoiceAssistantViewModel {
                 let balance = try await creditsService.getBalance(userId: userId)
 
                 guard !storeManager.activeSubscriptions.isEmpty else{
-                    self.voiceSessionState = .error("Subscription required, please subscribe.")
                     self.isSessionActivated = false
-                    self.addSystemMessage("Session blocked: No active subscription")
+                    self.accessBlockedReason = .noSubscription
                     return
                 }
 
                 guard balance.remaining > 0 else {
-                    self.voiceSessionState = .error("Insufficient credits. Please purchase more.")
                     self.isSessionActivated = false
-                    self.addSystemMessage("Session blocked: Insufficient credits")
+                    self.accessBlockedReason = .insufficientCredits
                     return
                 }
 
@@ -257,7 +263,6 @@ class VoiceAssistantViewModel {
                 AppLogger.voice.error("Pre-session checks failed: \(error)")
                 self.voiceSessionState = .error("Could not verify balance. Check your connection.")
                 self.isSessionActivated = false
-                self.addSystemMessage("Session blocked: Could not verify balance")
                 return
             }
 
@@ -289,11 +294,17 @@ class VoiceAssistantViewModel {
                                     userId: userId
                                 )
 
-                                if case .failure(let error) = result {
+                                switch result {
+                                case .success(let balance):
+                                    if balance.remaining <= 0 {
+                                        AppLogger.voice.error("xAI usage depleted credits")
+                                        self.stopSession()
+                                        self.accessBlockedReason = .insufficientCredits
+                                    }
+                                case .failure(let error):
                                     AppLogger.voice.error("xAI usage tracking failed: \(error)")
                                     self.stopSession()
                                     self.voiceSessionState = .error("Usage tracking failed. Session stopped.")
-                                    self.addSystemMessage("Session stopped: Usage tracking failed")
                                 }
                             } catch {
                                 AppLogger.voice.error("Failed to get user ID: \(error)")
@@ -579,6 +590,14 @@ class VoiceAssistantViewModel {
                 } else {
                     outputString = result.error?.message ?? "Unknown error"
                     isSuccess = false
+
+                    // Check if credits depleted - stop session if so
+                    if result.error?.code == .insufficientCredits {
+                        AppLogger.voice.error("X API tool depleted credits")
+                        stopSession()
+                        accessBlockedReason = .insufficientCredits
+                        return
+                    }
                 }
 
                 // Send result back to voice service
@@ -624,6 +643,36 @@ class VoiceAssistantViewModel {
         }
 
         addConversationItem(.tweets(tweets.map { EnrichedTweet(from: $0, includes: tweetResponse.includes) }))
+    }
+
+    // MARK: - Purchase
+
+    func handleAccessBlockedPurchase() async {
+        guard let reason = accessBlockedReason else { return }
+
+        do {
+            switch reason {
+            case .noSubscription:
+                // Find subscription product
+                if let subscriptionProduct = storeManager.products.first(where: {
+                    ProductConfiguration.ProductID(rawValue: $0.id)?.isSubscription == true
+                }) {
+                    _ = try await storeManager.purchase(subscriptionProduct)
+                    accessBlockedReason = nil
+                }
+
+            case .insufficientCredits:
+                // Find credits product
+                if let creditsProduct = storeManager.products.first(where: {
+                    $0.id == ProductConfiguration.ProductID.credits10.rawValue
+                }) {
+                    _ = try await storeManager.purchase(creditsProduct)
+                    accessBlockedReason = nil
+                }
+            }
+        } catch {
+            AppLogger.voice.error("Purchase failed: \(error)")
+        }
     }
 
     // MARK: - X Auth

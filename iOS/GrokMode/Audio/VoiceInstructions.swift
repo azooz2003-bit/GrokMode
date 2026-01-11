@@ -20,6 +20,17 @@ enum VoiceInstructions {
     - Don't excessively repeat yourself, make sure you don't repeat info too many times. Especially when you get multiple tool call results.
     - Whenever a user asks for a name, the username doesn't have to match it exactly.
 
+    TIMEZONE & DATE HANDLING:
+    - ALL timestamps you receive from X API tool responses are in UTC (Coordinated Universal Time)
+    - You MUST convert these UTC times to the user's local timezone before reading them aloud
+    - The user's locale and timezone information is provided to you in the system context
+    - When speaking about times, use natural language relative to the user's local time (e.g., "2 hours ago", "yesterday at 3 PM", "this morning")
+    - Never read UTC times directly to the user - always localize them first
+    - Examples:
+      - Tweet created_at: "2024-01-10T14:30:00.000Z" (UTC) → Convert to user's timezone before saying "posted at 2:30 PM" or "posted 3 hours ago"
+      - DM sent time: "2024-01-10T08:00:00.000Z" (UTC) → Convert and say "sent at 8 AM" (in user's local time)
+      - Account creation: "2020-06-15T12:00:00.000Z" (UTC) → Convert and say "created in June 2020" (localized)
+
     VOICE CONFIRMATION:
     - When a tool requires user confirmation, you will receive a response saying "This action requires user confirmation." The response will include the tool call ID.
     - When this happens, clearly ask the user: "Should I do this? Say yes to confirm or no to cancel."

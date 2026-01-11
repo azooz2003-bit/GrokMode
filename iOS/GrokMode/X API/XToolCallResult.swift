@@ -8,12 +8,26 @@
 import Foundation
 
 nonisolated
+enum XToolCallErrorType: String, Codable {
+    case missingParam = "MISSING_PARAM"
+    case invalidResponse = "INVALID_RESPONSE"
+    case unauthorized = "UNAUTHORIZED"
+    case authRequired = "AUTH_REQUIRED"
+    case usageTrackingFailed = "USAGE_TRACKING_FAILED"
+    case insufficientCredits = "INSUFFICIENT_CREDITS"
+    case httpError = "HTTP_ERROR"
+    case requestFailed = "REQUEST_FAILED"
+    case invalidURL = "INVALID_URL"
+    case notImplemented = "NOT_IMPLEMENTED"
+}
+
+nonisolated
 struct XToolCallError: Codable, Error {
-    let code: String
+    let code: XToolCallErrorType
     let message: String
     let details: [String: String]?
 
-    init(code: String, message: String, details: [String: String]? = nil) {
+    init(code: XToolCallErrorType, message: String, details: [String: String]? = nil) {
         self.code = code
         self.message = message
         self.details = details

@@ -117,6 +117,9 @@ struct VoiceAssistantView: View {
                     }
                 }
             }
+            .task {
+                try? await viewModel.storeManager.loadProducts()
+            }
             .onAppear {
                 viewModel.checkPermissions()
                 hapticGenerator.prepare()
@@ -205,11 +208,25 @@ struct VoiceAssistantView: View {
     private var conversationList: some View {
         ScrollViewReader { scrollProxy in
             List {
-                ForEach(viewModel.conversationItems) { item in
-                    ConversationItemView(item: item, imageCache: imageCache)
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(Color.clear)
-                        .id(item.id)
+                if let accessBlockedReason = viewModel.accessBlockedReason {
+                    AccessBlockedView(
+                        reason: accessBlockedReason,
+                        storeManager: viewModel.storeManager,
+                        onPurchase: {
+                            Task {
+                                await viewModel.handleAccessBlockedPurchase()
+                            }
+                        }
+                    )
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                } else {
+                    ForEach(viewModel.conversationItems) { item in
+                        ConversationItemView(item: item, imageCache: imageCache)
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                            .id(item.id)
+                    }
                 }
             }
             .listStyle(.plain)
