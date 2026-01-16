@@ -331,6 +331,7 @@ class VoiceAssistantViewModel {
 
     func stopSession() {
         isSessionActivated = false
+        currentAudioLevel = 0.0
         sessionStartStopTask?.cancel()
         sessionStartStopTask = Task { @MainActor in
             // Track any remaining partial minute for Grok voice sessions
