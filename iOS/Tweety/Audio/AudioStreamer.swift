@@ -19,7 +19,7 @@ protocol AudioStreamerDelegate: AnyObject {
 
 class AudioStreamer: NSObject {
     enum AudioError: Error {
-        case convertToxAiFormatFailed, convertToiOSPlaybackFormatFailed
+        case convertToRemoteFormatFailed, convertToiOSPlaybackFormatFailed
     }
     
     weak var delegate: AudioStreamerDelegate?
@@ -51,7 +51,7 @@ class AudioStreamer: NSObject {
         hasTapInstalled && audioEngine.isRunning
     }
 
-    // XAI audio format: 24kHz, 16-bit PCM, mono (fixed for Grok API)
+    // e.g. XAI audio format: 24kHz, 16-bit PCM, mono (fixed for Grok API)
     var serverSampleRate: Double {
         serverAudioFormat.sampleRate
     }
@@ -60,10 +60,10 @@ class AudioStreamer: NSObject {
     // MARK: Setup Audio Session
 
     @concurrent
-    static public func make(xaiSampleRate: Double = 24000) async throws -> AudioStreamer {
-        let xaiFormat: AVAudioFormat = {
+    static public func make(remoteSampleRate: Double = 24000) async throws -> AudioStreamer {
+        let remoteFormat: AVAudioFormat = {
             guard let format = AVAudioFormat(commonFormat: .pcmFormatInt16,
-                                             sampleRate: xaiSampleRate,
+                                             sampleRate: remoteSampleRate,
                                              channels: 1,
                                              interleaved: false) else {
                 fatalError("Failed to create XAI audio format")
@@ -90,7 +90,7 @@ class AudioStreamer: NSObject {
         AppLogger.audio.debug("   Sample rate: \(hardwareFormat.sampleRate)Hz")
         AppLogger.audio.debug("   Channels: \(hardwareFormat.channelCount)")
         AppLogger.audio.debug("   Format: \(hardwareFormat.commonFormat.rawValue)")
-        AppLogger.audio.debug("Will convert to XAI format: \(xaiSampleRate)Hz for Grok")
+        AppLogger.audio.debug("Will convert to XAI format: \(remoteSampleRate)Hz for Grok")
         #endif
 
         audioEngine.attach(playerNode)
@@ -102,7 +102,7 @@ class AudioStreamer: NSObject {
             inputNode: inputNode,
             playerNode: playerNode,
             mixerNode: mixerNode,
-                        serverAudioFormat: xaiFormat,
+                        serverAudioFormat: remoteFormat,
             hardwareFormat: hardwareFormat
         )
     }
@@ -301,7 +301,7 @@ class AudioStreamer: NSObject {
         let frameCount = AVAudioFrameCount(Double(buffer.frameLength) * ratio)
         
         guard let outputBuffer = AVAudioPCMBuffer(pcmFormat: self.serverAudioFormat, frameCapacity: frameCount) else {
-            throw AudioError.convertToxAiFormatFailed
+            throw AudioError.convertToRemoteFormatFailed
         }
 
         var error: NSError?
@@ -311,7 +311,7 @@ class AudioStreamer: NSObject {
         }
 
         if status == .error || error != nil {
-            throw AudioError.convertToxAiFormatFailed
+            throw AudioError.convertToRemoteFormatFailed
         }
 
         outputBuffer.frameLength = frameCount
