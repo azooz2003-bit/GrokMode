@@ -1,42 +1,38 @@
 //
-//  XToolIntegration.swift
+//  VoiceFlowToolIntegration.swift
 //  Tweety
 //
-//  Created by Matt Steele on 12/7/25.
+//  Created by Abdulaziz Albahar on 1/16/26.
 //
 
 import Foundation
 import JSONSchema
 
-struct XToolIntegration {
-    
-    static var tools: [XTool] {
-        var all = XTool.allCases
-        all.removeAll(where: { $0 == .searchAllTweets})
-        return all
+struct VoiceFlowToolIntegration {
+
+    static var actions: [VoiceFlowAction] {
+        VoiceFlowAction.allCases
     }
 
     static func getToolDefinitions() -> [VoiceToolDefinition] {
-        tools.map { tool in
+        actions.map { action in
             let parametersDict: [String: Any]
             do {
                 let encoder = JSONEncoder()
-                let data = try encoder.encode(tool.jsonSchema)
+                let data = try encoder.encode(action.jsonSchema)
                 if let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
                     parametersDict = dict
                 } else {
-                    // Fallback to valid minimal schema
                     parametersDict = ["type": "object", "properties": [:]]
                 }
             } catch {
-                // Fallback to valid minimal schema
                 parametersDict = ["type": "object", "properties": [:]]
             }
 
             return VoiceToolDefinition(
                 type: "function",
-                name: tool.rawValue,
-                description: tool.description,
+                name: action.rawValue,
+                description: action.description,
                 parameters: parametersDict
             )
         }

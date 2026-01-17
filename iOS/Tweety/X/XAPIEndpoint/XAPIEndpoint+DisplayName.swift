@@ -1,14 +1,14 @@
 //
-//  XTool+DisplayName.swift
+//  XAPIEndpoint+DisplayName.swift
 //  Tweety
 //
-//  Created by Abdulaziz Albahar on 12/21/25.
+//  Created by Abdulaziz Albahar on 1/16/26.
 //
 
 import Foundation
 
-extension XTool {
-    /// User-friendly display name for the tool, shown in conversation UI
+extension XAPIEndpoint {
+    /// User-friendly display name for the endpoint, shown in conversation UI
     var displayName: String {
         switch self {
         // MARK: - Posts/Tweets
@@ -114,10 +114,6 @@ extension XTool {
         // MARK: - News
         case .getNewsById: return "Get News Story"
         case .searchNews: return "Search News"
-
-        // MARK: - Voice Confirmation
-        case .confirmAction: return "Confirm Action"
-        case .cancelAction: return "Cancel Action"
         }
     }
 }

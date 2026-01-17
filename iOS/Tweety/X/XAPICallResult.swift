@@ -1,14 +1,14 @@
 //
-//  XToolCallResult.swift
-//  XTools
+//  XAPICallResult.swift
+//  Tweety
 //
-//  Created by Abdulaziz Albahar on 12/6/25.
+//  Created by Abdulaziz Albahar on 1/16/26.
 //
 
 import Foundation
 
 nonisolated
-enum XToolCallErrorType: String, Codable {
+enum XAPICallErrorType: String, Codable {
     case missingParam = "MISSING_PARAM"
     case invalidResponse = "INVALID_RESPONSE"
     case unauthorized = "UNAUTHORIZED"
@@ -22,12 +22,12 @@ enum XToolCallErrorType: String, Codable {
 }
 
 nonisolated
-struct XToolCallError: Codable, Error {
-    let code: XToolCallErrorType
+struct XAPICallError: Codable, Error {
+    let code: XAPICallErrorType
     let message: String
     let details: [String: String]?
 
-    init(code: XToolCallErrorType, message: String, details: [String: String]? = nil) {
+    init(code: XAPICallErrorType, message: String, details: [String: String]? = nil) {
         self.code = code
         self.message = message
         self.details = details
@@ -35,15 +35,15 @@ struct XToolCallError: Codable, Error {
 }
 
 nonisolated
-struct XToolCallResult: Codable {
+struct XAPICallResult: Codable {
     let id: String?
     let toolName: String
     let success: Bool
     let response: String?  // JSON string - ready for LLM
-    let error: XToolCallError?
+    let error: XAPICallError?
     let statusCode: Int?
 
-    init(id: String? = nil, toolName: String, success: Bool, response: String? = nil, error: XToolCallError? = nil, statusCode: Int? = nil) {
+    init(id: String? = nil, toolName: String, success: Bool, response: String? = nil, error: XAPICallError? = nil, statusCode: Int? = nil) {
         self.id = id
         self.toolName = toolName
         self.success = success
@@ -52,11 +52,11 @@ struct XToolCallResult: Codable {
         self.statusCode = statusCode
     }
 
-    static func success(id: String? = nil, toolName: String, response: String?, statusCode: Int) -> XToolCallResult {
-        XToolCallResult(id: id, toolName: toolName, success: true, response: response, error: nil, statusCode: statusCode)
+    static func success(id: String? = nil, toolName: String, response: String?, statusCode: Int) -> XAPICallResult {
+        XAPICallResult(id: id, toolName: toolName, success: true, response: response, error: nil, statusCode: statusCode)
     }
 
-    static func failure(id: String? = nil, toolName: String, error: XToolCallError, statusCode: Int?) -> XToolCallResult {
-        XToolCallResult(id: id, toolName: toolName, success: false, response: nil, error: error, statusCode: statusCode)
+    static func failure(id: String? = nil, toolName: String, error: XAPICallError, statusCode: Int?) -> XAPICallResult {
+        XAPICallResult(id: id, toolName: toolName, success: false, response: nil, error: error, statusCode: statusCode)
     }
 }

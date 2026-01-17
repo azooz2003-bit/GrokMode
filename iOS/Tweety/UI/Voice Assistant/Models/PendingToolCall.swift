@@ -15,6 +15,6 @@ struct PendingToolCall: Identifiable {
     let previewContent: String
 
     var actionIcon: String {
-        XTool(rawValue: functionName)?.actionIcon ?? "hand.raised.fill"
+        XAPIEndpoint(rawValue: functionName)?.actionIcon ?? "hand.raised.fill"
     }
 }

@@ -1,21 +1,21 @@
 //
-//  XTool.swift
-//  XTools
+//  XAPIEndpoint.swift
+//  Tweety
 //
-//  Created by Abdulaziz Albahar on 12/6/25.
+//  Created by Abdulaziz Albahar on 1/16/26.
 //
 
 import Foundation
 import JSONSchema
 internal import OrderedCollections
 
-enum PreviewBehavior {
-    case none                      // Safe tools, auto-execute
-    case requiresConfirmation      // Needs user approval with preview
-}
-
 nonisolated
-enum XTool: String, CaseIterable, Identifiable {
+enum XAPIEndpoint: String, CaseIterable, Identifiable {
+    enum PreviewBehavior {
+        case none                      // Safe tools, auto-execute
+        case requiresConfirmation      // Needs user approval with preview
+    }
+    
     // MARK: - Posts/Tweets
     case createTweet = "create_tweet"
     case replyToTweet = "reply_to_tweet"
@@ -119,10 +119,6 @@ enum XTool: String, CaseIterable, Identifiable {
     // MARK: - News
     case getNewsById = "get_news_by_id"
     case searchNews = "search_news"
-
-    // MARK: - Voice Confirmation
-    case confirmAction = "confirm_action"
-    case cancelAction = "cancel_action"
 
     var id: String { rawValue }
     var name: String { rawValue }
@@ -232,10 +228,6 @@ enum XTool: String, CaseIterable, Identifiable {
         // News
         case .getNewsById: return "Get news story by ID"
         case .searchNews: return "Search news stories"
-
-        // Voice Confirmation
-        case .confirmAction: return "Confirms and executes the pending action when the user says 'yes', 'confirm', 'do it', or similar affirmations"
-        case .cancelAction: return "Cancels the pending action when the user says 'no', 'cancel', 'don't', or similar rejections"
         }
     }
 
@@ -1045,35 +1037,60 @@ enum XTool: String, CaseIterable, Identifiable {
                 ],
                 required: ["query"]
             )
-
-        // MARK: - Voice Confirmation
-        case .confirmAction:
-            return .object(
-                properties: [
-                    "tool_call_id": .string(description: "The ID of the original tool call that is being confirmed")
-                ],
-                required: ["tool_call_id"]
-            )
-
-        case .cancelAction:
-            return .object(
-                properties: [
-                    "tool_call_id": .string(description: "The ID of the original tool call that is being cancelled")
-                ],
-                required: ["tool_call_id"]
-            )
         }
     }
 
-    static func getToolByName(_ name: String) -> XTool? {
-        return XTool.allCases.first { $0.name == name }
+    var previewBehavior: PreviewBehavior {
+        switch self {
+        // Write operations require confirmation
+
+        // Posts/Tweets
+        case .createTweet, .replyToTweet, .quoteTweet, .createPollTweet, .deleteTweet, .editTweet:
+            return .requiresConfirmation
+
+        // Likes & Retweets
+        case .likeTweet, .unlikeTweet, .retweet, .unretweet:
+            return .requiresConfirmation
+
+        // Follow/Unfollow
+        case .followUser, .unfollowUser:
+            return .requiresConfirmation
+
+        // Mute/Unmute
+        case .muteUser, .unmuteUser:
+            return .requiresConfirmation
+
+        // Block/Unblock DMs
+        case .blockUserDMs, .unblockUserDMs:
+            return .requiresConfirmation
+
+        // Lists
+        case .createList, .deleteList, .updateList, .addListMember, .removeListMember, .pinList, .unpinList, .followList, .unfollowList:
+            return .requiresConfirmation
+
+        // Direct Messages
+        case .createDMConversation, .sendDMToConversation, .sendDMToParticipant, .deleteDMEvent:
+            return .requiresConfirmation
+
+        // Bookmarks
+        case .addBookmark, .removeBookmark:
+            return .requiresConfirmation
+
+        // Read-only operations are safe (searches, gets, streams, etc.)
+        default:
+            return .none
+        }
     }
 
-    /// Tools that are supported and should be exposed to the LLM.
+    static func getEndpointByName(_ name: String) -> XAPIEndpoint? {
+        return XAPIEndpoint.allCases.first { $0.name == name }
+    }
+
+    /// API endpoints that are supported and should be exposed to the LLM.
     /// Excludes Community Notes and Media tools.
-    static var supportedTools: [XTool] {
-        return allCases.filter { tool in
-            switch tool {
+    static var supportedEndpoints: [XAPIEndpoint] {
+        return allCases.filter { endpoint in
+            switch endpoint {
             // Exclude Community Notes tools
             case .createNote, .deleteNote, .evaluateNote, .getNotesWritten, .getPostsEligibleForNotes:
                 return false
@@ -1088,4 +1105,3 @@ enum XTool: String, CaseIterable, Identifiable {
         }
     }
 }
-

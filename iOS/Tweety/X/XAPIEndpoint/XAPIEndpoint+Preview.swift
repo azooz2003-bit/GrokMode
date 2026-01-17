@@ -1,14 +1,14 @@
 //
-//  XTool+ConfirmationPreview.swift
+//  XAPIEndpoint+Preview.swift
 //  Tweety
 //
-//  Created by Abdulaziz Albahar on 12/25/25.
+//  Created by Abdulaziz Albahar on 1/16/26.
 //
 
 import Foundation
 import SwiftUI
 
-extension XTool {
+extension XAPIEndpoint {
     var actionIcon: String {
         switch self {
         // Posts/Tweets
@@ -90,53 +90,7 @@ extension XTool {
         }
     }
 
-    var previewBehavior: PreviewBehavior {
-        switch self {
-        // Write operations require confirmation
-
-        // Posts/Tweets
-        case .createTweet, .replyToTweet, .quoteTweet, .createPollTweet, .deleteTweet, .editTweet:
-            return .requiresConfirmation
-
-        // Likes & Retweets
-        case .likeTweet, .unlikeTweet, .retweet, .unretweet:
-            return .requiresConfirmation
-
-        // Follow/Unfollow
-        case .followUser, .unfollowUser:
-            return .requiresConfirmation
-
-        // Mute/Unmute
-        case .muteUser, .unmuteUser:
-            return .requiresConfirmation
-
-        // Block/Unblock DMs
-        case .blockUserDMs, .unblockUserDMs:
-            return .requiresConfirmation
-
-        // Lists
-        case .createList, .deleteList, .updateList, .addListMember, .removeListMember, .pinList, .unpinList, .followList, .unfollowList:
-            return .requiresConfirmation
-
-        // Direct Messages
-        case .createDMConversation, .sendDMToConversation, .sendDMToParticipant, .deleteDMEvent:
-            return .requiresConfirmation
-
-        // Bookmarks
-        case .addBookmark, .removeBookmark:
-            return .requiresConfirmation
-
-        // Voice Confirmation tools (must execute immediately without confirmation)
-        case .confirmAction, .cancelAction:
-            return .none
-
-        // Read-only operations are safe (searches, gets, streams, etc.)
-        default:
-            return .none
-        }
-    }
-
-    func generatePreview(from arguments: String, orchestrator: XToolOrchestrator) async -> (title: String, content: String)? {
+    func generatePreview(from arguments: String, orchestrator: XAPIOrchestrator) async -> (title: String, content: String)? {
         guard previewBehavior == .requiresConfirmation else { return nil }
 
         // Parse JSON arguments
@@ -157,7 +111,7 @@ extension XTool {
             if let replyObj = params["reply"] as? [String: Any],
                let replyToId = replyObj["in_reply_to_tweet_id"] as? String {
                 // Fetch the tweet being replied to with author info
-                let result = await orchestrator.executeTool(.getTweet, parameters: [
+                let result = await orchestrator.executeEndpoint(.getTweet, parameters: [
                     "id": replyToId,
                     "tweet.fields": ["text", "author_id"],
                     "expansions": ["author_id"],
@@ -193,7 +147,7 @@ extension XTool {
             let quoteId = params["quote_tweet_id"] as? String ?? ""
 
             // Fetch the tweet being quoted with author info
-            let result = await orchestrator.executeTool(.getTweet, parameters: [
+            let result = await orchestrator.executeEndpoint(.getTweet, parameters: [
                 "id": quoteId,
                 "tweet.fields": ["text", "author_id"],
                 "expansions": ["author_id"],
@@ -237,7 +191,7 @@ extension XTool {
             let id = params["id"] as? String ?? ""
 
             // Fetch the tweet to be deleted
-            let result = await orchestrator.executeTool(.getTweet, parameters: [
+            let result = await orchestrator.executeEndpoint(.getTweet, parameters: [
                 "id": id,
                 "tweet.fields": ["text"]
             ])
@@ -256,7 +210,7 @@ extension XTool {
             let newText = params["text"] as? String ?? ""
 
             // Fetch the tweet to be edited
-            let result = await orchestrator.executeTool(.getTweet, parameters: [
+            let result = await orchestrator.executeEndpoint(.getTweet, parameters: [
                 "id": previousPostId,
                 "tweet.fields": ["text"]
             ])
@@ -277,7 +231,7 @@ extension XTool {
             let id = params["tweet_id"] as? String ?? ""
 
             // Fetch the tweet to be liked
-            let result = await orchestrator.executeTool(.getTweet, parameters: [
+            let result = await orchestrator.executeEndpoint(.getTweet, parameters: [
                 "id": id,
                 "tweet.fields": ["text"]
             ])
@@ -296,7 +250,7 @@ extension XTool {
             let id = params["tweet_id"] as? String ?? ""
 
             // Fetch the tweet to be unliked
-            let result = await orchestrator.executeTool(.getTweet, parameters: [
+            let result = await orchestrator.executeEndpoint(.getTweet, parameters: [
                 "id": id,
                 "tweet.fields": ["text"]
             ])
@@ -315,7 +269,7 @@ extension XTool {
             let id = params["tweet_id"] as? String ?? ""
 
             // Fetch the tweet to be retweeted
-            let result = await orchestrator.executeTool(.getTweet, parameters: [
+            let result = await orchestrator.executeEndpoint(.getTweet, parameters: [
                 "id": id,
                 "tweet.fields": ["text"]
             ])
@@ -334,7 +288,7 @@ extension XTool {
             let id = params["source_tweet_id"] as? String ?? ""
 
             // Fetch the tweet to be unretweeted
-            let result = await orchestrator.executeTool(.getTweet, parameters: [
+            let result = await orchestrator.executeEndpoint(.getTweet, parameters: [
                 "id": id,
                 "tweet.fields": ["text"]
             ])
@@ -355,7 +309,7 @@ extension XTool {
             let participantId = params["participant_id"] as? String ?? ""
 
             // Fetch the user being messaged
-            let result = await orchestrator.executeTool(.getUserById, parameters: [
+            let result = await orchestrator.executeEndpoint(.getUserById, parameters: [
                 "id": participantId
             ])
 
@@ -388,7 +342,7 @@ extension XTool {
                 return (title: "Create Group DM", content: "\"\(text)\"\n\nWith \(participantIds.count) participants")
             } else if let participantId = participantIds.first {
                 // Fetch the user being messaged
-                let result = await orchestrator.executeTool(.getUserById, parameters: [
+                let result = await orchestrator.executeEndpoint(.getUserById, parameters: [
                     "id": participantId
                 ])
 
@@ -410,7 +364,7 @@ extension XTool {
             let targetUserId = params["target_user_id"] as? String ?? ""
 
             // Fetch the user to be followed
-            let result = await orchestrator.executeTool(.getUserById, parameters: [
+            let result = await orchestrator.executeEndpoint(.getUserById, parameters: [
                 "id": targetUserId
             ])
 
@@ -428,7 +382,7 @@ extension XTool {
             let targetUserId = params["target_user_id"] as? String ?? ""
 
             // Fetch the user to be unfollowed
-            let result = await orchestrator.executeTool(.getUserById, parameters: [
+            let result = await orchestrator.executeEndpoint(.getUserById, parameters: [
                 "id": targetUserId
             ])
 
@@ -446,7 +400,7 @@ extension XTool {
             let targetUserId = params["target_user_id"] as? String ?? ""
 
             // Fetch the user to be muted
-            let result = await orchestrator.executeTool(.getUserById, parameters: [
+            let result = await orchestrator.executeEndpoint(.getUserById, parameters: [
                 "id": targetUserId
             ])
 
@@ -464,7 +418,7 @@ extension XTool {
             let targetUserId = params["target_user_id"] as? String ?? ""
 
             // Fetch the user to be unmuted
-            let result = await orchestrator.executeTool(.getUserById, parameters: [
+            let result = await orchestrator.executeEndpoint(.getUserById, parameters: [
                 "id": targetUserId
             ])
 
@@ -482,7 +436,7 @@ extension XTool {
             let targetUserId = params["target_user_id"] as? String ?? ""
 
             // Fetch the user
-            let result = await orchestrator.executeTool(.getUserById, parameters: [
+            let result = await orchestrator.executeEndpoint(.getUserById, parameters: [
                 "id": targetUserId
             ])
 
@@ -500,7 +454,7 @@ extension XTool {
             let targetUserId = params["target_user_id"] as? String ?? ""
 
             // Fetch the user
-            let result = await orchestrator.executeTool(.getUserById, parameters: [
+            let result = await orchestrator.executeEndpoint(.getUserById, parameters: [
                 "id": targetUserId
             ])
 
@@ -526,7 +480,7 @@ extension XTool {
             let listId = params["id"] as? String ?? ""
 
             // Fetch the list
-            let result = await orchestrator.executeTool(.getList, parameters: [
+            let result = await orchestrator.executeEndpoint(.getList, parameters: [
                 "id": listId
             ])
 
@@ -558,8 +512,8 @@ extension XTool {
             let userId = params["user_id"] as? String ?? ""
 
             // Fetch both list and user
-            async let listResult = orchestrator.executeTool(.getList, parameters: ["id": listId])
-            async let userResult = orchestrator.executeTool(.getUserById, parameters: ["id": userId])
+            async let listResult = orchestrator.executeEndpoint(.getList, parameters: ["id": listId])
+            async let userResult = orchestrator.executeEndpoint(.getUserById, parameters: ["id": userId])
 
             let (list, user) = await (listResult, userResult)
 
@@ -588,8 +542,8 @@ extension XTool {
             let userId = params["user_id"] as? String ?? ""
 
             // Fetch both list and user
-            async let listResult = orchestrator.executeTool(.getList, parameters: ["id": listId])
-            async let userResult = orchestrator.executeTool(.getUserById, parameters: ["id": userId])
+            async let listResult = orchestrator.executeEndpoint(.getList, parameters: ["id": listId])
+            async let userResult = orchestrator.executeEndpoint(.getUserById, parameters: ["id": userId])
 
             let (list, user) = await (listResult, userResult)
 
@@ -617,7 +571,7 @@ extension XTool {
             let listId = params["list_id"] as? String ?? ""
 
             // Fetch the list
-            let result = await orchestrator.executeTool(.getList, parameters: [
+            let result = await orchestrator.executeEndpoint(.getList, parameters: [
                 "id": listId
             ])
 
@@ -634,7 +588,7 @@ extension XTool {
             let listId = params["list_id"] as? String ?? ""
 
             // Fetch the list
-            let result = await orchestrator.executeTool(.getList, parameters: [
+            let result = await orchestrator.executeEndpoint(.getList, parameters: [
                 "id": listId
             ])
 
@@ -651,7 +605,7 @@ extension XTool {
             let listId = params["list_id"] as? String ?? ""
 
             // Fetch the list
-            let result = await orchestrator.executeTool(.getList, parameters: [
+            let result = await orchestrator.executeEndpoint(.getList, parameters: [
                 "id": listId
             ])
 
@@ -668,7 +622,7 @@ extension XTool {
             let listId = params["list_id"] as? String ?? ""
 
             // Fetch the list
-            let result = await orchestrator.executeTool(.getList, parameters: [
+            let result = await orchestrator.executeEndpoint(.getList, parameters: [
                 "id": listId
             ])
 
@@ -686,7 +640,7 @@ extension XTool {
             let tweetId = params["tweet_id"] as? String ?? ""
 
             // Fetch the tweet to be bookmarked
-            let result = await orchestrator.executeTool(.getTweet, parameters: [
+            let result = await orchestrator.executeEndpoint(.getTweet, parameters: [
                 "id": tweetId,
                 "tweet.fields": ["text"]
             ])
@@ -705,7 +659,7 @@ extension XTool {
             let tweetId = params["tweet_id"] as? String ?? ""
 
             // Fetch the tweet to be unbookmarked
-            let result = await orchestrator.executeTool(.getTweet, parameters: [
+            let result = await orchestrator.executeEndpoint(.getTweet, parameters: [
                 "id": tweetId,
                 "tweet.fields": ["text"]
             ])
@@ -724,228 +678,4 @@ extension XTool {
             return (title: "Allow \(name)?", content: arguments)
         }
     }
-}
-
-// MARK: - Preview Helpers
-
-private struct ToolPreviewRow: View {
-    let tool: XTool
-    let sampleTitle: String
-    let sampleContent: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 12) {
-                Image(systemName: tool.actionIcon)
-                    .font(.system(size: 20))
-                    .foregroundStyle(.blue.gradient)
-                    .frame(width: 32, height: 32)
-                    .background(.white.opacity(0.1))
-                    .clipShape(Circle())
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(sampleTitle)
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.primary)
-
-                    Text(sampleContent)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                }
-
-                Spacer()
-            }
-
-            Text(tool.rawValue)
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-        }
-        .padding(.vertical, 4)
-    }
-}
-
-#Preview("Tool Previews") {
-    List {
-        Section("Posts & Tweets") {
-            ToolPreviewRow(
-                tool: .createTweet,
-                sampleTitle: "Post Tweet",
-                sampleContent: "\"Just discovered an amazing new feature in SwiftUI!\""
-            )
-            ToolPreviewRow(
-                tool: .replyToTweet,
-                sampleTitle: "Reply to @johndoe",
-                sampleContent: "Original: \"What's everyone working on today?\"\n\nYour reply: \"Building a new iOS app with SwiftUI!\""
-            )
-            ToolPreviewRow(
-                tool: .quoteTweet,
-                sampleTitle: "Quote @janedoe",
-                sampleContent: "Quoting: \"SwiftUI makes building UIs so much easier!\"\n\nYour quote: \"Couldn't agree more! The declarative syntax is game-changing.\""
-            )
-            ToolPreviewRow(
-                tool: .createPollTweet,
-                sampleTitle: "Create Poll",
-                sampleContent: "\"Which programming language do you prefer?\"\n\nPoll options:\n1. Swift\n2. Kotlin\n3. JavaScript\n4. Python\n\nDuration: 1440 minutes"
-            )
-            ToolPreviewRow(
-                tool: .deleteTweet,
-                sampleTitle: "Delete Tweet",
-                sampleContent: "\"This tweet didn't age well\""
-            )
-            ToolPreviewRow(
-                tool: .editTweet,
-                sampleTitle: "Edit Tweet",
-                sampleContent: "From: \"I love coding in Swift!\"\nTo: \"I love coding in Swift and SwiftUI!\""
-            )
-        }
-
-        Section("Likes & Retweets") {
-            ToolPreviewRow(
-                tool: .likeTweet,
-                sampleTitle: "Like Tweet",
-                sampleContent: "\"SwiftUI's new features in iOS 18 are incredible!\""
-            )
-            ToolPreviewRow(
-                tool: .unlikeTweet,
-                sampleTitle: "Unlike Tweet",
-                sampleContent: "\"Hot take: tabs are better than spaces\""
-            )
-            ToolPreviewRow(
-                tool: .retweet,
-                sampleTitle: "Retweet",
-                sampleContent: "\"Just shipped v2.0 of our app! Check it out on the App Store.\""
-            )
-            ToolPreviewRow(
-                tool: .unretweet,
-                sampleTitle: "Undo Retweet",
-                sampleContent: "\"Reposted this too early, the event got rescheduled\""
-            )
-        }
-
-        Section("Follow & Unfollow") {
-            ToolPreviewRow(
-                tool: .followUser,
-                sampleTitle: "Follow @apple",
-                sampleContent: "Apple Inc."
-            )
-            ToolPreviewRow(
-                tool: .unfollowUser,
-                sampleTitle: "Unfollow @spambot",
-                sampleContent: "Spam Bot Account"
-            )
-        }
-
-        Section("Mute & Unmute") {
-            ToolPreviewRow(
-                tool: .muteUser,
-                sampleTitle: "Mute @noisyuser",
-                sampleContent: "Too Many Posts Daily"
-            )
-            ToolPreviewRow(
-                tool: .unmuteUser,
-                sampleTitle: "Unmute @goodfriend",
-                sampleContent: "Good Friend"
-            )
-        }
-
-        Section("Block & Unblock DMs") {
-            ToolPreviewRow(
-                tool: .blockUserDMs,
-                sampleTitle: "Block DMs from @spammer",
-                sampleContent: "Spam Account"
-            )
-            ToolPreviewRow(
-                tool: .unblockUserDMs,
-                sampleTitle: "Unblock DMs from @colleague",
-                sampleContent: "Work Colleague"
-            )
-        }
-
-        Section("Lists") {
-            ToolPreviewRow(
-                tool: .createList,
-                sampleTitle: "Create List",
-                sampleContent: "iOS Developers\nPublic\n\nDevelopers building amazing iOS apps"
-            )
-            ToolPreviewRow(
-                tool: .deleteList,
-                sampleTitle: "Delete List",
-                sampleContent: "Old Projects"
-            )
-            ToolPreviewRow(
-                tool: .updateList,
-                sampleTitle: "Update List",
-                sampleContent: "Name: SwiftUI Enthusiasts\nDescription: People who love SwiftUI\nPrivacy: Private"
-            )
-            ToolPreviewRow(
-                tool: .addListMember,
-                sampleTitle: "Add to List",
-                sampleContent: "iOS Developers\n@johndoe"
-            )
-            ToolPreviewRow(
-                tool: .removeListMember,
-                sampleTitle: "Remove from List",
-                sampleContent: "iOS Developers\n@janedoe"
-            )
-            ToolPreviewRow(
-                tool: .pinList,
-                sampleTitle: "Pin List",
-                sampleContent: "Favorite Developers"
-            )
-            ToolPreviewRow(
-                tool: .unpinList,
-                sampleTitle: "Unpin List",
-                sampleContent: "Random Topics"
-            )
-            ToolPreviewRow(
-                tool: .followList,
-                sampleTitle: "Follow List",
-                sampleContent: "Tech News"
-            )
-            ToolPreviewRow(
-                tool: .unfollowList,
-                sampleTitle: "Unfollow List",
-                sampleContent: "Outdated Resources"
-            )
-        }
-
-        Section("Direct Messages") {
-            ToolPreviewRow(
-                tool: .createDMConversation,
-                sampleTitle: "New DM to @colleague",
-                sampleContent: "\"Hey, can we discuss the project?\""
-            )
-            ToolPreviewRow(
-                tool: .sendDMToConversation,
-                sampleTitle: "Send DM",
-                sampleContent: "\"Thanks for the quick response!\""
-            )
-            ToolPreviewRow(
-                tool: .sendDMToParticipant,
-                sampleTitle: "Send DM to @friend",
-                sampleContent: "\"Want to grab coffee this weekend?\""
-            )
-            ToolPreviewRow(
-                tool: .deleteDMEvent,
-                sampleTitle: "Delete Message",
-                sampleContent: "Delete this DM?"
-            )
-        }
-
-        Section("Bookmarks") {
-            ToolPreviewRow(
-                tool: .addBookmark,
-                sampleTitle: "Bookmark Tweet",
-                sampleContent: "\"Great tutorial on advanced Swift patterns: [link]\""
-            )
-            ToolPreviewRow(
-                tool: .removeBookmark,
-                sampleTitle: "Remove Bookmark",
-                sampleContent: "\"Already read this article and implemented it\""
-            )
-        }
-    }
-    .listStyle(.insetGrouped)
 }

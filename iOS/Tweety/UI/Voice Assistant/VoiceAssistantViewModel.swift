@@ -177,15 +177,15 @@ class VoiceAssistantViewModel {
             AppLogger.network.debug("===== USER PROFILE REQUEST =====")
             #endif
 
-            let xToolOrchestrator = XToolOrchestrator(authService: self.authViewModel.authService, storeManager: storeManager, usageTracker: usageTracker)
+            let orchestrator = XAPIOrchestrator(authService: self.authViewModel.authService, storeManager: storeManager, usageTracker: usageTracker)
 
             // Connect to voice service in parallel with user profile fetch
             async let connect: () = voiceService.connect()
-            async let userProfileResult = xToolOrchestrator.executeTool(.getAuthenticatedUser, parameters: [:])
+            async let userProfileResult = orchestrator.executeEndpoint(.getAuthenticatedUser, parameters: [:])
 
             let (_, _) = (await userProfileResult, try await connect)
 
-            let tools = XToolIntegration.getToolDefinitions()
+            let tools = ToolIntegration.getToolDefinitions()
 
             let instructions: String
             if let xaiService = voiceService as? XAIVoiceService {
@@ -425,60 +425,68 @@ class VoiceAssistantViewModel {
     private func handleToolCall(_ toolCall: VoiceToolCall) {
         let functionName = toolCall.name
 
-        guard let tool = XTool(rawValue: functionName) else {
+        guard let tool = Tool(rawValue: functionName) else {
             // Unknown tool - execute anyway
             executeTool(toolCall)
             return
         }
 
-        switch tool.previewBehavior {
-        case .none:
-            // Safe tool - execute immediately
-            executeTool(toolCall)
+        switch tool {
+        case .apiEndpoint(let endpoint):
+            // Route API endpoint based on preview behavior
+            switch endpoint.previewBehavior {
+            case .none:
+                // Safe tool - execute immediately
+                executeTool(toolCall)
 
-        case .requiresConfirmation:
-            // Check if this will be the focused tool (first in queue)
-            let isFirstInQueue = pendingToolCallQueue.isEmpty
+            case .requiresConfirmation:
+                // Check if this will be the focused tool (first in queue)
+                let isFirstInQueue = pendingToolCallQueue.isEmpty
 
-            // Add to queue with placeholder
-            let newPendingTool = PendingToolCall(
-                id: toolCall.id,
-                functionName: functionName,
-                arguments: toolCall.arguments,
-                previewTitle: "Allow \(functionName)?",
-                previewContent: "Loading preview..."
-            )
-            pendingToolCallQueue.append(newPendingTool)
+                // Add to queue with placeholder
+                let newPendingTool = PendingToolCall(
+                    id: toolCall.id,
+                    functionName: functionName,
+                    arguments: toolCall.arguments,
+                    previewTitle: "Allow \(functionName)?",
+                    previewContent: "Loading preview..."
+                )
+                pendingToolCallQueue.append(newPendingTool)
 
-            addConversationItem(.toolCall(name: functionName, status: .pending))
+                addConversationItem(.toolCall(name: functionName, status: .pending))
 
-            // Only notify voice assistant if this is the focused (first) tool
-            if isFirstInQueue {
-                try? voiceService?.sendToolOutput(VoiceToolOutput(
-                    toolCallId: toolCall.id,
-                    output: "This action requires user confirmation. Tool call ID: \(toolCall.id). Waiting for the user to confirm or cancel. Ask the user: 'Should I do this? Say yes to confirm or no to cancel.'. Send a confirm_action tool call if the user indicates that they'd like to confirm this action.",
-                    success: false,
-                    previousItemId: toolCall.itemId
-                ))
-                try? voiceService?.createResponse()
-            }
+                // Only notify voice assistant if this is the focused (first) tool
+                if isFirstInQueue {
+                    try? voiceService?.sendToolOutput(VoiceToolOutput(
+                        toolCallId: toolCall.id,
+                        output: "This action requires user confirmation. Tool call ID: \(toolCall.id). Waiting for the user to confirm or cancel. Ask the user: 'Should I do this? Say yes to confirm or no to cancel.'. Send a confirm_action tool call if the user indicates that they'd like to confirm this action.",
+                        success: false,
+                        previousItemId: toolCall.itemId
+                    ))
+                    try? voiceService?.createResponse()
+                }
 
-            // Fetch rich preview asynchronously to update UI
-            Task { @MainActor in
-                let xToolOrchestrator = XToolOrchestrator(authService: authViewModel.authService, storeManager: storeManager, usageTracker: usageTracker)
-                let preview = await tool.generatePreview(from: toolCall.arguments, orchestrator: xToolOrchestrator)
+                // Fetch rich preview asynchronously to update UI
+                Task { @MainActor in
+                    let apiOrchestrator = XAPIOrchestrator(authService: authViewModel.authService, storeManager: storeManager, usageTracker: usageTracker)
+                    let preview = await endpoint.generatePreview(from: toolCall.arguments, orchestrator: apiOrchestrator)
 
-                // Update with rich preview if still in queue
-                if let index = pendingToolCallQueue.firstIndex(where: { $0.id == toolCall.id }) {
-                    pendingToolCallQueue[index] = PendingToolCall(
-                        id: toolCall.id,
-                        functionName: functionName,
-                        arguments: toolCall.arguments,
-                        previewTitle: preview?.title ?? "Allow \(functionName)?",
-                        previewContent: preview?.content ?? "Review and confirm this action"
-                    )
+                    // Update with rich preview if still in queue
+                    if let index = pendingToolCallQueue.firstIndex(where: { $0.id == toolCall.id }) {
+                        pendingToolCallQueue[index] = PendingToolCall(
+                            id: toolCall.id,
+                            functionName: functionName,
+                            arguments: toolCall.arguments,
+                            previewTitle: preview?.title ?? "Allow \(functionName)?",
+                            previewContent: preview?.content ?? "Review and confirm this action"
+                        )
+                    }
                 }
             }
+
+        case .flowAction:
+            // Flow actions always execute immediately (no confirmation needed)
+            executeTool(toolCall)
         }
     }
 
@@ -531,9 +539,11 @@ class VoiceAssistantViewModel {
 
     private func executeTool(_ toolCall: VoiceToolCall) {
         Task {
-            // Handle voice confirmation tools specially
-            if let tool = XTool(rawValue: toolCall.name), tool == .confirmAction || tool == .cancelAction {
+            guard let tool = Tool(rawValue: toolCall.name) else { return }
 
+            switch tool {
+            case .flowAction(let action):
+                // Handle voice flow actions
                 struct ConfirmationParams: Codable {
                     let tool_call_id: String
                 }
@@ -545,7 +555,7 @@ class VoiceAssistantViewModel {
                 let originalToolCallId = params?.tool_call_id ?? "unknown"
                 let originalItemId = sessionState.toolCalls.first { $0.id == originalToolCallId }?.call.itemId
 
-                switch tool {
+                switch action {
                 case .confirmAction:
                     // Validate that the tool call still exists in pending queue
                     guard pendingToolCallQueue.contains(where: { $0.id == originalToolCallId }) else {
@@ -570,6 +580,7 @@ class VoiceAssistantViewModel {
                     try? voiceService?.createResponse()
                     addConversationItem(.toolCall(name: toolCall.name, status: .executed(success: true)))
                     approveToolCall()
+
                 case .cancelAction:
                     rejectToolCall()
                     try? voiceService?.sendToolOutput(VoiceToolOutput(
@@ -580,28 +591,28 @@ class VoiceAssistantViewModel {
                     ))
                     try? voiceService?.createResponse()
                     addConversationItem(.toolCall(name: toolCall.name, status: .executed(success: true)))
-                default: fatalError("Will never happen.")
                 }
 
-                return
-            }
-            // Handle remaining X tools normally
-            else if let tool = XTool(rawValue: toolCall.name),
-                      let data = toolCall.arguments.data(using: .utf8),
-                      let parameters = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            case .apiEndpoint(let endpoint):
+                // Handle X API endpoints
+                guard let data = toolCall.arguments.data(using: .utf8),
+                      let parameters = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                    return
+                }
+
                 let outputString: String
                 let isSuccess: Bool
 
-                // Handle X API tools through orchestrator
-                let orchestrator = XToolOrchestrator(authService: authViewModel.authService, storeManager: storeManager, usageTracker: usageTracker)
-                let result = await orchestrator.executeTool(tool, parameters: parameters, id: toolCall.id)
+                // Handle X API endpoints through orchestrator
+                let orchestrator = XAPIOrchestrator(authService: authViewModel.authService, storeManager: storeManager, usageTracker: usageTracker)
+                let result = await orchestrator.executeEndpoint(endpoint, parameters: parameters, id: toolCall.id)
 
                 if result.success, let response = result.response {
                     outputString = response
                     isSuccess = true
 
                     // Parse and display tweets if applicable
-                    parseTweetsFromResponse(response, toolName: tool.rawValue)
+                    parseTweetsFromResponse(response, toolName: endpoint.rawValue)
                 } else {
                     outputString = result.error?.message ?? "Unknown error"
                     isSuccess = false
@@ -643,14 +654,14 @@ class VoiceAssistantViewModel {
     }
 
     private func parseTweetsFromResponse(_ response: String, toolName: String) {
-        let tweetTools: Set<XTool> = [
+        let tweetTools: Set<XAPIEndpoint> = [
             .searchRecentTweets, .searchAllTweets, .getTweets, .getTweet,
             .getUserLikedTweets, .getUserTweets, .getUserMentions, .getHomeTimeline, .getRepostsOfMe
         ]
 
         guard let data = response.data(using: .utf8),
-              let tool = XTool(rawValue: toolName),
-              tweetTools.contains(tool),
+              let endpoint = XAPIEndpoint(rawValue: toolName),
+              tweetTools.contains(endpoint),
               let tweetResponse = try? JSONDecoder().decode(XTweetResponse.self, from: data),
               let tweets = tweetResponse.data else {
             AppLogger.voice.error("Failed to parse tweets from response.")

@@ -1,19 +1,18 @@
 //
-//  XToolOrchestrator.swift
-//  XTools
+//  XAPIOrchestrator.swift
+//  XAPIEndpoints
 //
-//  Created by Abdulaziz Albahar on 12/6/25.
+//  Created by Abdulaziz Albahar on 1/16/26.
 //
 
 import Foundation
 internal import os
 
-nonisolated
-enum HTTPMethod: String {
-    case get = "GET", post = "POST", delete = "DELETE", put = "PUT"
-}
-
-actor XToolOrchestrator {
+actor XAPIOrchestrator {
+    enum HTTPMethod: String {
+        case get = "GET", post = "POST", delete = "DELETE", put = "PUT"
+    }
+    
     private var baseURL: URL { Config.baseXURL }
     private let authService: XAuthService
     private let storeManager: StoreKitManager
@@ -30,9 +29,9 @@ actor XToolOrchestrator {
     /// Determines which bearer token to use based on the endpoint requirements
     /// - OAuth 2.0 User Context: For user actions and private data access
     /// - App-only Bearer Token: For public data lookups
-    private func getBearerToken(for tool: XTool) async throws -> String? {
+    private func getBearerToken(for endpoint: XAPIEndpoint) async throws -> String? {
         guard let userToken = await authService.getValidAccessToken() else {
-            throw XToolCallError(
+            throw XAPICallError(
                 code: .authRequired,
                 message: "This action requires user authentication. Please log in to your X/Twitter account."
             )
@@ -40,23 +39,23 @@ actor XToolOrchestrator {
         return userToken
     }
 
-    public func executeTool(_ tool: XTool, parameters: [String: Any], id: String? = nil) async -> XToolCallResult {
-        return await executeToolWithRetry(tool, parameters: parameters, id: id, attempt: 1)
+    public func executeEndpoint(_ endpoint: XAPIEndpoint, parameters: [String: Any], id: String? = nil) async -> XAPICallResult {
+        return await executeEndpointWithRetry(endpoint, parameters: parameters, id: id, attempt: 1)
     }
 
-    private func executeToolWithRetry(_ tool: XTool, parameters: [String: Any], id: String?, attempt: Int) async -> XToolCallResult {
+    private func executeEndpointWithRetry(_ endpoint: XAPIEndpoint, parameters: [String: Any], id: String?, attempt: Int) async -> XAPICallResult {
         // Log if this is a pagination request
         if let paginationToken = parameters["pagination_token"] as? String {
-            AppLogger.tools.info("PAGINATION: Agent calling \(tool.name) with pagination_token")
+            AppLogger.tools.info("PAGINATION: Agent calling \(endpoint.name) with pagination_token")
             AppLogger.tools.info("PAGINATION: Pagination token = \(paginationToken)")
             AppLogger.tools.info("PAGINATION: All parameters = \(parameters)")
         }
 
         do {
-            let request = try await buildRequest(for: tool, parameters: parameters)
+            let request = try await buildRequest(for: endpoint, parameters: parameters)
 
             #if DEBUG
-            AppLogger.tools.debug("TOOL CALL: Executing \(tool.name) (attempt \(attempt))")
+            AppLogger.tools.debug("TOOL CALL: Executing \(endpoint.name) (attempt \(attempt))")
             AppLogger.tools.debug("TOOL CALL: URL: \(request.url?.absoluteString ?? "nil")")
             AppLogger.tools.debug("TOOL CALL: Method: \(request.httpMethod ?? "nil")")
             if let body = request.httpBody {
@@ -70,8 +69,8 @@ actor XToolOrchestrator {
                 AppLogger.network.error("TOOL CALL: Invalid Response")
                 return .failure(
                     id: id,
-                    toolName: tool.name,
-                    error: XToolCallError(code: .invalidResponse, message: "Response is not HTTP"),
+                    toolName: endpoint.name,
+                    error: XAPICallError(code: .invalidResponse, message: "Response is not HTTP"),
                     statusCode: nil
                 )
             }
@@ -83,20 +82,20 @@ actor XToolOrchestrator {
 
             if httpResponse.statusCode >= 200 && httpResponse.statusCode < 300 {
                 let responseString = String(data: data, encoding: .utf8)
-                let enrichedResponse = enrichResponseWithPagination(responseString, toolName: tool.name, originalParameters: parameters)
+                let enrichedResponse = enrichResponseWithPagination(responseString, toolName: endpoint.name, originalParameters: parameters)
 
                 do {
-                    try await trackXAPIUsage(for: tool, responseData: data)
+                    try await trackXAPIUsage(for: endpoint, responseData: data)
                 } catch {
                     AppLogger.usage.error("X API usage tracking failed: \(error)")
-                    let trackingError = XToolCallError(
+                    let trackingError = XAPICallError(
                         code: .usageTrackingFailed,
                         message: "Usage tracking failed: \(error.localizedDescription)"
                     )
-                    return .failure(id: id, toolName: tool.name, error: trackingError, statusCode: nil)
+                    return .failure(id: id, toolName: endpoint.name, error: trackingError, statusCode: nil)
                 }
 
-                return .success(id: id, toolName: tool.name, response: enrichedResponse, statusCode: httpResponse.statusCode)
+                return .success(id: id, toolName: endpoint.name, response: enrichedResponse, statusCode: httpResponse.statusCode)
             } else if httpResponse.statusCode == 401 {
                 // 401 = unauthorized (permissions issue or other API error)
                 // Note: Token refresh is already handled by getValidAccessToken()
@@ -105,8 +104,8 @@ actor XToolOrchestrator {
                 AppLogger.auth.warning("TOOL CALL: 401 Unauthorized - \(errorMessage)")
                 return .failure(
                     id: id,
-                    toolName: tool.name,
-                    error: XToolCallError(
+                    toolName: endpoint.name,
+                    error: XAPICallError(
                         code: .unauthorized,
                         message: "You don't have permission to perform this action: \(errorMessage)"
                     ),
@@ -116,8 +115,8 @@ actor XToolOrchestrator {
                 let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
                 return .failure(
                     id: id,
-                    toolName: tool.name,
-                    error: XToolCallError(
+                    toolName: endpoint.name,
+                    error: XAPICallError(
                         code: .httpError,
                         message: errorMessage,
                         details: ["status_code": "\(httpResponse.statusCode)"]
@@ -125,18 +124,18 @@ actor XToolOrchestrator {
                     statusCode: httpResponse.statusCode
                 )
             }
-        } catch let error as XToolCallError {
+        } catch let error as XAPICallError {
             return .failure(
                 id: id,
-                toolName: tool.name,
+                toolName: endpoint.name,
                 error: error,
                 statusCode: nil
             )
         } catch {
             return .failure(
                 id: id,
-                toolName: tool.name,
-                error: XToolCallError(
+                toolName: endpoint.name,
+                error: XAPICallError(
                     code: .requestFailed,
                     message: error.localizedDescription
                 ),
@@ -223,13 +222,13 @@ actor XToolOrchestrator {
         return enriched
     }
 
-    internal func buildRequest(for tool: XTool, parameters: [String: Any]) async throws -> URLRequest {
+    internal func buildRequest(for endpoint: XAPIEndpoint, parameters: [String: Any]) async throws -> URLRequest {
         var path: String
         var method: HTTPMethod
         var queryItems: [URLQueryItem] = []
         var bodyParams: [String: Any] = [:]
 
-        switch tool {
+        switch endpoint {
         // MARK: - Posts/Tweets
         case .createTweet:
             path = "/2/tweets"
@@ -252,13 +251,13 @@ actor XToolOrchestrator {
             bodyParams = parameters
 
         case .deleteTweet:
-            guard let id = parameters["id"] else { throw XToolCallError(code: .missingParam, message: "Missing required parameter: id") }
+            guard let id = parameters["id"] else { throw XAPICallError(code: .missingParam, message: "Missing required parameter: id") }
             path = "/2/tweets/\(id)"
             method = .delete
 
         case .editTweet:
             guard let previousPostId = parameters["previous_post_id"], let text = parameters["text"] else {
-                throw XToolCallError(code: .missingParam, message: "Missing required parameters: previous_post_id and text")
+                throw XAPICallError(code: .missingParam, message: "Missing required parameters: previous_post_id and text")
             }
             path = "/2/tweets"
             method = .post
@@ -268,7 +267,7 @@ actor XToolOrchestrator {
             ]
 
         case .getTweet:
-            guard let id = parameters["id"] else { throw XToolCallError(code: .missingParam, message: "Missing required parameter: id") }
+            guard let id = parameters["id"] else { throw XAPICallError(code: .missingParam, message: "Missing required parameter: id") }
             path = "/2/tweets/\(id)"
             method = .get
             queryItems = buildQueryItems(from: enrichWithTweetFields(parameters), excluding: ["id"])
@@ -279,19 +278,19 @@ actor XToolOrchestrator {
             queryItems = buildQueryItems(from: enrichWithTweetFields(parameters))
 
         case .getUserTweets:
-            guard let userId = parameters["id"] else { throw XToolCallError(code: .missingParam, message: "Missing required parameter: id") }
+            guard let userId = parameters["id"] else { throw XAPICallError(code: .missingParam, message: "Missing required parameter: id") }
             path = "/2/users/\(userId)/tweets"
             method = .get
             queryItems = buildQueryItems(from: enrichWithTweetFields(parameters, limitResults: true), excluding: ["id"])
 
         case .getUserMentions:
-            guard let userId = parameters["id"] else { throw XToolCallError(code: .missingParam, message: "Missing required parameter: id") }
+            guard let userId = parameters["id"] else { throw XAPICallError(code: .missingParam, message: "Missing required parameter: id") }
             path = "/2/users/\(userId)/mentions"
             method = .get
             queryItems = buildQueryItems(from: enrichWithTweetFields(parameters, limitResults: true), excluding: ["id"])
 
         case .getHomeTimeline:
-            guard let userId = parameters["id"] else { throw XToolCallError(code: .missingParam, message: "Missing required parameter: id") }
+            guard let userId = parameters["id"] else { throw XAPICallError(code: .missingParam, message: "Missing required parameter: id") }
             path = "/2/users/\(userId)/timelines/reverse_chronological"
             method = .get
             queryItems = buildQueryItems(from: enrichWithTweetFields(parameters, limitResults: true), excluding: ["id"])
@@ -319,7 +318,7 @@ actor XToolOrchestrator {
 
         // MARK: - Users
         case .getUserById:
-            guard let id = parameters["id"] else { throw XToolCallError(code: .missingParam, message: "Missing required parameter: id") }
+            guard let id = parameters["id"] else { throw XAPICallError(code: .missingParam, message: "Missing required parameter: id") }
             path = "/2/users/\(id)"
             method = .get
 
@@ -335,7 +334,7 @@ actor XToolOrchestrator {
             queryItems = buildQueryItems(from: enrichedParams, excluding: ["id"])
 
         case .getUserByUsername:
-            guard let username = parameters["username"] else { throw XToolCallError(code: .missingParam, message: "Missing required parameter: username") }
+            guard let username = parameters["username"] else { throw XAPICallError(code: .missingParam, message: "Missing required parameter: username") }
             path = "/2/users/by/username/\(username)"
             method = .get
 
@@ -366,115 +365,115 @@ actor XToolOrchestrator {
             queryItems = buildQueryItems(from: enrichWithUserFields(parameters))
 
         case .getUserFollowing:
-            guard let id = parameters["id"] else { throw XToolCallError(code: .missingParam, message: "Missing required parameter: id") }
+            guard let id = parameters["id"] else { throw XAPICallError(code: .missingParam, message: "Missing required parameter: id") }
             path = "/2/users/\(id)/following"
             method = .get
             queryItems = buildQueryItems(from: enrichWithUserFields(parameters), excluding: ["id"])
 
         case .followUser:
-            guard let id = parameters["id"] else { throw XToolCallError(code: .missingParam, message: "Missing required parameter: id") }
+            guard let id = parameters["id"] else { throw XAPICallError(code: .missingParam, message: "Missing required parameter: id") }
             path = "/2/users/\(id)/following"
             method = .post
             bodyParams = filterParams(parameters, excluding: ["id"])
 
         case .unfollowUser:
             guard let id = parameters["id"], let targetUserId = parameters["target_user_id"] else {
-                throw XToolCallError(code: .missingParam, message: "Missing required parameters")
+                throw XAPICallError(code: .missingParam, message: "Missing required parameters")
             }
             path = "/2/users/\(id)/following/\(targetUserId)"
             method = .delete
 
         case .getUserFollowers:
-            guard let id = parameters["id"] else { throw XToolCallError(code: .missingParam, message: "Missing required parameter: id") }
+            guard let id = parameters["id"] else { throw XAPICallError(code: .missingParam, message: "Missing required parameter: id") }
             path = "/2/users/\(id)/followers"
             method = .get
             queryItems = buildQueryItems(from: enrichWithUserFields(parameters), excluding: ["id"])
 
         case .getMutedUsers:
-            guard let id = parameters["id"] else { throw XToolCallError(code: .missingParam, message: "Missing required parameter: id") }
+            guard let id = parameters["id"] else { throw XAPICallError(code: .missingParam, message: "Missing required parameter: id") }
             path = "/2/users/\(id)/muting"
             method = .get
             queryItems = buildQueryItems(from: enrichWithUserFields(parameters), excluding: ["id"])
 
         case .muteUser:
-            guard let id = parameters["id"] else { throw XToolCallError(code: .missingParam, message: "Missing required parameter: id") }
+            guard let id = parameters["id"] else { throw XAPICallError(code: .missingParam, message: "Missing required parameter: id") }
             path = "/2/users/\(id)/muting"
             method = .post
             bodyParams = filterParams(parameters, excluding: ["id"])
 
         case .unmuteUser:
             guard let id = parameters["id"], let targetUserId = parameters["target_user_id"] else {
-                throw XToolCallError(code: .missingParam, message: "Missing required parameters")
+                throw XAPICallError(code: .missingParam, message: "Missing required parameters")
             }
             path = "/2/users/\(id)/muting/\(targetUserId)"
             method = .delete
 
         case .getBlockedUsers:
-            guard let id = parameters["id"] else { throw XToolCallError(code: .missingParam, message: "Missing required parameter: id") }
+            guard let id = parameters["id"] else { throw XAPICallError(code: .missingParam, message: "Missing required parameter: id") }
             path = "/2/users/\(id)/blocking"
             method = .get
             queryItems = buildQueryItems(from: enrichWithUserFields(parameters), excluding: ["id"])
 
         case .blockUserDMs:
-            guard let targetUserId = parameters["target_user_id"] else { throw XToolCallError(code: .missingParam, message: "Missing required parameter: id") }
+            guard let targetUserId = parameters["target_user_id"] else { throw XAPICallError(code: .missingParam, message: "Missing required parameter: id") }
             path = "/2/users/\(targetUserId)/dm/block"
             method = .post
 
         case .unblockUserDMs:
             guard let targetUserId = parameters["target_user_id"] else {
-                throw XToolCallError(code: .missingParam, message: "Missing required parameters")
+                throw XAPICallError(code: .missingParam, message: "Missing required parameters")
             }
             path = "/2/users/\(targetUserId)/dm/unblock"
             method = .post
 
         // MARK: - Likes
         case .getLikingUsers:
-            guard let id = parameters["id"] else { throw XToolCallError(code: .missingParam, message: "Missing required parameter: id") }
+            guard let id = parameters["id"] else { throw XAPICallError(code: .missingParam, message: "Missing required parameter: id") }
             path = "/2/tweets/\(id)/liking_users"
             method = .get
             queryItems = buildQueryItems(from: enrichWithUserFields(parameters), excluding: ["id"])
 
         case .likeTweet:
-            guard let id = parameters["id"] else { throw XToolCallError(code: .missingParam, message: "Missing required parameter: id") }
+            guard let id = parameters["id"] else { throw XAPICallError(code: .missingParam, message: "Missing required parameter: id") }
             path = "/2/users/\(id)/likes"
             method = .post
             bodyParams = filterParams(parameters, excluding: ["id"])
 
         case .unlikeTweet:
             guard let id = parameters["id"], let tweetId = parameters["tweet_id"] else {
-                throw XToolCallError(code: .missingParam, message: "Missing required parameters")
+                throw XAPICallError(code: .missingParam, message: "Missing required parameters")
             }
             path = "/2/users/\(id)/likes/\(tweetId)"
             method = .delete
 
         case .getUserLikedTweets:
-            guard let id = parameters["id"] else { throw XToolCallError(code: .missingParam, message: "Missing required parameter: id") }
+            guard let id = parameters["id"] else { throw XAPICallError(code: .missingParam, message: "Missing required parameter: id") }
             path = "/2/users/\(id)/liked_tweets"
             method = .get
             queryItems = buildQueryItems(from: enrichWithTweetFields(parameters, limitResults: true), excluding: ["id"])
 
         // MARK: - Retweets
         case .getRetweetedBy:
-            guard let id = parameters["id"] else { throw XToolCallError(code: .missingParam, message: "Missing required parameter: id") }
+            guard let id = parameters["id"] else { throw XAPICallError(code: .missingParam, message: "Missing required parameter: id") }
             path = "/2/tweets/\(id)/retweeted_by"
             method = .get
             queryItems = buildQueryItems(from: enrichWithTweetFields(parameters), excluding: ["id"])
 
         case .retweet:
-            guard let id = parameters["id"] else { throw XToolCallError(code: .missingParam, message: "Missing required parameter: id") }
+            guard let id = parameters["id"] else { throw XAPICallError(code: .missingParam, message: "Missing required parameter: id") }
             path = "/2/users/\(id)/retweets"
             method = .post
             bodyParams = filterParams(parameters, excluding: ["id"])
 
         case .unretweet:
             guard let id = parameters["id"], let sourceTweetId = parameters["source_tweet_id"] else {
-                throw XToolCallError(code: .missingParam, message: "Missing required parameters")
+                throw XAPICallError(code: .missingParam, message: "Missing required parameters")
             }
             path = "/2/users/\(id)/retweets/\(sourceTweetId)"
             method = .delete
 
         case .getRetweets:
-            guard let id = parameters["id"] else { throw XToolCallError(code: .missingParam, message: "Missing required parameter: id") }
+            guard let id = parameters["id"] else { throw XAPICallError(code: .missingParam, message: "Missing required parameter: id") }
             path = "/2/tweets/\(id)/retweets"
             method = .get
             queryItems = buildQueryItems(from: enrichWithTweetFields(parameters), excluding: ["id"])
@@ -491,100 +490,100 @@ actor XToolOrchestrator {
             bodyParams = parameters
 
         case .deleteList:
-            guard let id = parameters["id"] else { throw XToolCallError(code: .missingParam, message: "Missing required parameter: id") }
+            guard let id = parameters["id"] else { throw XAPICallError(code: .missingParam, message: "Missing required parameter: id") }
             path = "/2/lists/\(id)"
             method = .delete
 
         case .updateList:
-            guard let id = parameters["id"] else { throw XToolCallError(code: .missingParam, message: "Missing required parameter: id") }
+            guard let id = parameters["id"] else { throw XAPICallError(code: .missingParam, message: "Missing required parameter: id") }
             path = "/2/lists/\(id)"
             method = .put
             bodyParams = filterParams(parameters, excluding: ["id"])
 
         case .getList:
-            guard let id = parameters["id"] else { throw XToolCallError(code: .missingParam, message: "Missing required parameter: id") }
+            guard let id = parameters["id"] else { throw XAPICallError(code: .missingParam, message: "Missing required parameter: id") }
             path = "/2/lists/\(id)"
             method = .get
             queryItems = buildQueryItems(from: enrichWithListFields(parameters), excluding: ["id"])
 
         case .getListMembers:
-            guard let id = parameters["id"] else { throw XToolCallError(code: .missingParam, message: "Missing required parameter: id") }
+            guard let id = parameters["id"] else { throw XAPICallError(code: .missingParam, message: "Missing required parameter: id") }
             path = "/2/lists/\(id)/members"
             method = .get
             queryItems = buildQueryItems(from: enrichWithUserFields(parameters), excluding: ["id"])
 
         case .addListMember:
-            guard let id = parameters["id"] else { throw XToolCallError(code: .missingParam, message: "Missing required parameter: id") }
+            guard let id = parameters["id"] else { throw XAPICallError(code: .missingParam, message: "Missing required parameter: id") }
             path = "/2/lists/\(id)/members"
             method = .post
             bodyParams = filterParams(parameters, excluding: ["id"])
 
         case .removeListMember:
             guard let id = parameters["id"], let userId = parameters["user_id"] else {
-                throw XToolCallError(code: .missingParam, message: "Missing required parameters")
+                throw XAPICallError(code: .missingParam, message: "Missing required parameters")
             }
             path = "/2/lists/\(id)/members/\(userId)"
             method = .delete
 
         case .getListTweets:
-            guard let id = parameters["id"] else { throw XToolCallError(code: .missingParam, message: "Missing required parameter: id") }
+            guard let id = parameters["id"] else { throw XAPICallError(code: .missingParam, message: "Missing required parameter: id") }
             path = "/2/lists/\(id)/tweets"
             method = .get
             queryItems = buildQueryItems(from: enrichWithTweetFields(parameters), excluding: ["id"])
 
         case .getListFollowers:
-            guard let id = parameters["id"] else { throw XToolCallError(code: .missingParam, message: "Missing required parameter: id") }
+            guard let id = parameters["id"] else { throw XAPICallError(code: .missingParam, message: "Missing required parameter: id") }
             path = "/2/lists/\(id)/followers"
             method = .get
             queryItems = buildQueryItems(from: enrichWithUserFields(parameters), excluding: ["id"])
 
         case .pinList:
-            guard let id = parameters["id"] else { throw XToolCallError(code: .missingParam, message: "Missing required parameter: id") }
+            guard let id = parameters["id"] else { throw XAPICallError(code: .missingParam, message: "Missing required parameter: id") }
             path = "/2/users/\(id)/pinned_lists"
             method = .post
             bodyParams = filterParams(parameters, excluding: ["id"])
 
         case .unpinList:
             guard let id = parameters["id"], let listId = parameters["list_id"] else {
-                throw XToolCallError(code: .missingParam, message: "Missing required parameters")
+                throw XAPICallError(code: .missingParam, message: "Missing required parameters")
             }
             path = "/2/users/\(id)/pinned_lists/\(listId)"
             method = .delete
 
         case .getPinnedLists:
-            guard let id = parameters["id"] else { throw XToolCallError(code: .missingParam, message: "Missing required parameter: id") }
+            guard let id = parameters["id"] else { throw XAPICallError(code: .missingParam, message: "Missing required parameter: id") }
             path = "/2/users/\(id)/pinned_lists"
             method = .get
             queryItems = buildQueryItems(from: enrichWithListFields(parameters), excluding: ["id"])
 
         case .getOwnedLists:
-            guard let id = parameters["id"] else { throw XToolCallError(code: .missingParam, message: "Missing required parameter: id") }
+            guard let id = parameters["id"] else { throw XAPICallError(code: .missingParam, message: "Missing required parameter: id") }
             path = "/2/users/\(id)/owned_lists"
             method = .get
             queryItems = buildQueryItems(from: enrichWithListFields(parameters), excluding: ["id"])
 
         case .getFollowedLists:
-            guard let id = parameters["id"] else { throw XToolCallError(code: .missingParam, message: "Missing required parameter: id") }
+            guard let id = parameters["id"] else { throw XAPICallError(code: .missingParam, message: "Missing required parameter: id") }
             path = "/2/users/\(id)/followed_lists"
             method = .get
             queryItems = buildQueryItems(from: enrichWithListFields(parameters), excluding: ["id"])
 
         case .followList:
             guard let id = parameters["id"], let listId = parameters["list_id"] else {
-                throw XToolCallError(code: .missingParam, message: "Missing required parameters")
+                throw XAPICallError(code: .missingParam, message: "Missing required parameters")
             }
             path = "/2/users/\(id)/followed_lists/\(listId)"
             method = .post
 
         case .unfollowList:
             guard let id = parameters["id"], let listId = parameters["list_id"] else {
-                throw XToolCallError(code: .missingParam, message: "Missing required parameters")
+                throw XAPICallError(code: .missingParam, message: "Missing required parameters")
             }
             path = "/2/users/\(id)/followed_lists/\(listId)"
             method = .delete
 
         case .getListMemberships:
-            guard let id = parameters["id"] else { throw XToolCallError(code: .missingParam, message: "Missing required parameter: id") }
+            guard let id = parameters["id"] else { throw XAPICallError(code: .missingParam, message: "Missing required parameter: id") }
             path = "/2/users/\(id)/list_memberships"
             method = .get
             queryItems = buildQueryItems(from: enrichWithListFields(parameters), excluding: ["id"])
@@ -597,7 +596,7 @@ actor XToolOrchestrator {
 
         case .sendDMToConversation:
             guard let dmConversationId = parameters["dm_conversation_id"] else {
-                throw XToolCallError(code: .missingParam, message: "Missing required parameter: dm_conversation_id")
+                throw XAPICallError(code: .missingParam, message: "Missing required parameter: dm_conversation_id")
             }
             path = "/2/dm_conversations/\(dmConversationId)/messages"
             method = .post
@@ -605,7 +604,7 @@ actor XToolOrchestrator {
 
         case .sendDMToParticipant:
             guard let participantId = parameters["participant_id"] else {
-                throw XToolCallError(code: .missingParam, message: "Missing required parameter: participant_id")
+                throw XAPICallError(code: .missingParam, message: "Missing required parameter: participant_id")
             }
             path = "/2/dm_conversations/with/\(participantId)/messages"
             method = .post
@@ -617,14 +616,14 @@ actor XToolOrchestrator {
             queryItems = buildQueryItems(from: enrichWithDMFields(parameters))
 
         case .getConversationDMs:
-            guard let id = parameters["id"] else { throw XToolCallError(code: .missingParam, message: "Missing required parameter: id") }
+            guard let id = parameters["id"] else { throw XAPICallError(code: .missingParam, message: "Missing required parameter: id") }
             path = "/2/dm_conversations/\(id)/dm_events"
             method = .get
             queryItems = buildQueryItems(from: enrichWithDMFields(parameters), excluding: ["id"])
 
         case .getConversationDMsByParticipant:
             guard let participantId = parameters["participant_id"] else {
-                throw XToolCallError(code: .missingParam, message: "Missing required parameter: participant_id")
+                throw XAPICallError(code: .missingParam, message: "Missing required parameter: participant_id")
             }
             path = "/2/dm_conversations/with/\(participantId)/dm_events"
             method = .get
@@ -632,33 +631,33 @@ actor XToolOrchestrator {
 
         case .deleteDMEvent:
             guard let dmEventId = parameters["dm_event_id"] else {
-                throw XToolCallError(code: .missingParam, message: "Missing required parameter: dm_event_id")
+                throw XAPICallError(code: .missingParam, message: "Missing required parameter: dm_event_id")
             }
             path = "/2/dm_events/\(dmEventId)"
             method = .delete
 
         case .getDMEventDetails:
-            guard let id = parameters["id"] else { throw XToolCallError(code: .missingParam, message: "Missing required parameter: id") }
+            guard let id = parameters["id"] else { throw XAPICallError(code: .missingParam, message: "Missing required parameter: id") }
             path = "/2/dm_events/\(id)"
             method = .get
             queryItems = buildQueryItems(from: enrichWithDMFields(parameters), excluding: ["id"])
 
         // MARK: - Bookmarks
         case .addBookmark:
-            guard let id = parameters["id"] else { throw XToolCallError(code: .missingParam, message: "Missing required parameter: id") }
+            guard let id = parameters["id"] else { throw XAPICallError(code: .missingParam, message: "Missing required parameter: id") }
             path = "/2/users/\(id)/bookmarks"
             method = .post
             bodyParams = filterParams(parameters, excluding: ["id"])
 
         case .removeBookmark:
             guard let id = parameters["id"], let tweetId = parameters["tweet_id"] else {
-                throw XToolCallError(code: .missingParam, message: "Missing required parameters")
+                throw XAPICallError(code: .missingParam, message: "Missing required parameters")
             }
             path = "/2/users/\(id)/bookmarks/\(tweetId)"
             method = .delete
 
         case .getUserBookmarks:
-            guard let id = parameters["id"] else { throw XToolCallError(code: .missingParam, message: "Missing required parameter: id") }
+            guard let id = parameters["id"] else { throw XAPICallError(code: .missingParam, message: "Missing required parameter: id") }
             path = "/2/users/\(id)/bookmarks"
             method = .get
             queryItems = buildQueryItems(from: enrichWithTweetFields(parameters), excluding: ["id"])
@@ -680,12 +679,12 @@ actor XToolOrchestrator {
             bodyParams = parameters
 
         case .deleteNote:
-            guard let id = parameters["id"] else { throw XToolCallError(code: .missingParam, message: "Missing required parameter: id") }
+            guard let id = parameters["id"] else { throw XAPICallError(code: .missingParam, message: "Missing required parameter: id") }
             path = "/2/notes/\(id)"
             method = .delete
 
         case .evaluateNote:
-            guard let id = parameters["id"] else { throw XToolCallError(code: .missingParam, message: "Missing required parameter: id") }
+            guard let id = parameters["id"] else { throw XAPICallError(code: .missingParam, message: "Missing required parameter: id") }
             path = "/2/notes/\(id)/evaluate"
             method = .put
             bodyParams = filterParams(parameters, excluding: ["id"])
@@ -728,7 +727,7 @@ actor XToolOrchestrator {
 
         case .createMediaMetadata:
             guard let mediaId = parameters["media_id"] else {
-                throw XToolCallError(code: .missingParam, message: "Missing required parameter: media_id")
+                throw XAPICallError(code: .missingParam, message: "Missing required parameter: media_id")
             }
             path = "/2/media/\(mediaId)/metadata"
             method = .post
@@ -736,14 +735,14 @@ actor XToolOrchestrator {
 
         case .getMediaAnalytics:
             guard let mediaKey = parameters["media_key"] else {
-                throw XToolCallError(code: .missingParam, message: "Missing required parameter: media_key")
+                throw XAPICallError(code: .missingParam, message: "Missing required parameter: media_key")
             }
             path = "/2/media/\(mediaKey)"
             method = .get
 
         // MARK: - News
         case .getNewsById:
-            guard let id = parameters["id"] else { throw XToolCallError(code: .missingParam, message: "Missing required parameter: id") }
+            guard let id = parameters["id"] else { throw XAPICallError(code: .missingParam, message: "Missing required parameter: id") }
             path = "/2/news/\(id)"
             method = .get
             queryItems = buildQueryItems(from: enrichWithNewsFields(parameters), excluding: ["id"])
@@ -752,9 +751,6 @@ actor XToolOrchestrator {
             path = "/2/news/search"
             method = .get
             queryItems = buildQueryItems(from: enrichWithNewsFields(parameters))
-
-        case .confirmAction, .cancelAction:
-            throw XToolCallError(code: .notImplemented, message: "Not expected to handle confirmation/cancellation of actions in orchestrator.")
         }
 
         var urlComponents = URLComponents(url: baseURL.appending(path: path), resolvingAgainstBaseURL: false)
@@ -763,12 +759,12 @@ actor XToolOrchestrator {
         }
 
         guard let url = urlComponents?.url else {
-            throw XToolCallError(code: .invalidURL, message: "Failed to construct URL for path: \(path)")
+            throw XAPICallError(code: .invalidURL, message: "Failed to construct URL for path: \(path)")
         }
 
         var request = URLRequest(url: url)
         request.httpMethod = method.rawValue
-        if let token = try await getBearerToken(for: tool) {
+        if let token = try await getBearerToken(for: endpoint) {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -884,7 +880,7 @@ actor XToolOrchestrator {
 
     /// Track X API usage based on tool type and response data with server registration
     @MainActor
-    private func trackXAPIUsage(for tool: XTool, responseData: Data) async throws {
+    private func trackXAPIUsage(for endpoint: XAPIEndpoint, responseData: Data) async throws {
         // Parse response to count items
         guard let json = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any] else {
             return
@@ -894,7 +890,7 @@ actor XToolOrchestrator {
         var count = 0
 
         // Categorize tools and determine operation type
-        switch tool {
+        switch endpoint {
         // Read operations - Posts
         case .searchRecentTweets, .searchAllTweets, .getTweets, .getTweet,
              .getUserLikedTweets, .getUserTweets, .getUserMentions,
@@ -1037,10 +1033,6 @@ actor XToolOrchestrator {
                 operation = .postRead
                 count = 1
             }
-
-        // Tools without usage tracking (user confirmation/cancellation actions)
-        case .confirmAction, .cancelAction:
-            return
         }
 
         // Register usage with server if operation was determined
@@ -1056,7 +1048,7 @@ actor XToolOrchestrator {
             case .success(let balance):
                 if balance.remaining <= 0 {
                     AppLogger.usage.error("X API usage depleted credits: remaining \(balance.remaining)")
-                    throw XToolCallError(
+                    throw XAPICallError(
                         code: .insufficientCredits,
                         message: "Insufficient credits remaining. Balance: $\(balance.remaining.rounded(toPlaces: 2))"
                     )
