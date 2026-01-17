@@ -638,12 +638,6 @@ class VoiceAssistantViewModel {
             AppLogger.voice.error("Purchase failed: \(error)")
         }
     }
-
-    // MARK: - X Auth
-
-    func logoutX() async {
-        await authViewModel.logout()
-    }
 }
 
 // MARK: AudioStreamerDelegate

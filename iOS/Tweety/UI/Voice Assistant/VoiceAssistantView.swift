@@ -167,7 +167,7 @@ struct VoiceAssistantView: View {
                 creditsService: creditsService,
                 usageTracker: viewModel.usageTracker,
                 onLogout: {
-                    await viewModel.logoutX()
+                    await authViewModel.logout()
                 }
             )
         }
