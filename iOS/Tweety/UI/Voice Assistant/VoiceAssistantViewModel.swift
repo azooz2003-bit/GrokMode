@@ -13,41 +13,32 @@ import StoreKit
 
 @Observable
 class VoiceAssistantViewModel {
-    enum UserDefaultsKey {
+    private enum UserDefaultsKey {
         static let selectedVoiceService = "com.tweety.selectedVoiceService"
         static let selectedVoice = "com.tweety.selectedVoice"
     }
+
     // MARK: State
     var micPermission: MicPermissionState = .checking
     var voiceSessionState: VoiceSessionState = .disconnected
     var isSessionActivated: Bool = false
     var currentAudioLevel: Float = 0.0
-    var selectedServiceType: VoiceServiceType = {
-        guard let serviceStr = UserDefaults.standard.string(forKey: UserDefaultsKey.selectedVoiceService), let serviceType = VoiceServiceType(rawValue: serviceStr)
-            else { return .openai }
-        return serviceType
-    }() {
+
+    var selectedServiceType: VoiceServiceType {
         didSet {
             UserDefaults.standard.set(selectedServiceType.rawValue, forKey: UserDefaultsKey.selectedVoiceService)
         }
     }
-    var selectedVoice: VoiceOption = {
-        guard let voiceStr = UserDefaults.standard.string(forKey: UserDefaultsKey.selectedVoice), let voiceType = VoiceOption(rawValue: voiceStr)
-            else { return .coral }
-        return voiceType
-    }() {
+
+    var selectedVoice: VoiceOption {
         didSet {
             UserDefaults.standard.set(selectedVoice.rawValue, forKey: UserDefaultsKey.selectedVoice)
         }
     }
+
     var accessBlockedReason: AccessBlockedReason?
 
     // MARK: Session
-    @ObservationIgnored private var sessionElapsedTime: TimeInterval = 0
-    @ObservationIgnored var sessionStartTime: Date?
-    private var sessionTimer: Timer?
-    /// Number of completed minutes already tracked
-    private var trackedMinutes: Int = 0
     /// For serializing sessions start and stops
     private var sessionStartStopTask: Task<Void, Never>?
 
@@ -61,12 +52,12 @@ class VoiceAssistantViewModel {
     // MARK: - Private Properties
     private var voiceService: VoiceService?
     private var audioStreamer: AudioStreamer?
-    private var sessionState = SessionState()
     private let authViewModel: AuthViewModel
     private let appAttestService: AppAttestService
     private let creditsService: RemoteCreditsService
     let storeManager: StoreKitManager
     let usageTracker: UsageTracker
+    let usageClock: VoiceUsageClock
 
     // MARK: Authentication
     var isXAuthenticated: Bool {
@@ -82,6 +73,31 @@ class VoiceAssistantViewModel {
         self.creditsService = creditsService
         self.storeManager = storeManager
         self.usageTracker = usageTracker
+        self.usageClock = VoiceUsageClock(usageTracker: usageTracker, authService: authViewModel.authService)
+
+        if let serviceStr = UserDefaults.standard.string(forKey: UserDefaultsKey.selectedVoiceService),
+           let serviceType = VoiceServiceType(rawValue: serviceStr) {
+            self.selectedServiceType = serviceType
+        } else {
+            self.selectedServiceType = .openai
+        }
+
+        if let voiceStr = UserDefaults.standard.string(forKey: UserDefaultsKey.selectedVoice),
+           let voiceType = VoiceOption(rawValue: voiceStr) {
+            self.selectedVoice = voiceType
+        } else {
+            self.selectedVoice = .coral
+        }
+
+        usageClock.onInsufficientCredits = { [weak self] in
+            self?.stopSession()
+            self?.accessBlockedReason = .insufficientCredits
+        }
+        usageClock.onTrackingError = { [weak self] error in
+            self?.stopSession()
+            self?.voiceSessionState = .error("Usage tracking failed. Session stopped.")
+        }
+
         checkPermissions()
     }
 
@@ -116,7 +132,7 @@ class VoiceAssistantViewModel {
             self.audioStreamer = nil
         }
 
-        let voiceService = selectedServiceType.createService(sessionState: sessionState, appAttestService: appAttestService, authService: authViewModel.authService, storeManager: storeManager, usageTracker: usageTracker, voice: selectedVoice)
+        let voiceService = selectedServiceType.createService(appAttestService: appAttestService, authService: authViewModel.authService, storeManager: storeManager, usageTracker: usageTracker, voice: selectedVoice)
         self.voiceService = voiceService
 
         // Initialize audio streamer with service-specific sample rate
@@ -143,31 +159,31 @@ class VoiceAssistantViewModel {
 
                 // Stop audio streaming immediately to prevent cascade of errors
                 self?.stopSession()
+                self?.voiceSessionState = .error(error.localizedDescription)
 
-                // Check if error is due to insufficient credits
-                if let voiceError = error as? VoiceServiceError,
-                   case .insufficientCredits = voiceError {
+                switch error {
+                case .insufficientCredits:
                     self?.accessBlockedReason = .insufficientCredits
-                } else {
-                    self?.voiceSessionState = .error(error.localizedDescription)
+                case .usageTrackingFailed, .websocketError:
+                    break
                 }
             }
         }
 
-        voiceService.onDisconnected = { [weak self] error in
+        voiceService.onDisconnected = { [weak self] closeCode in
             Task { @MainActor in
                 guard self?.voiceSessionState != .disconnected else { return }
 
-                if let error = error {
-                    AppLogger.voice.error("WebSocket disconnected with error: \(error.localizedDescription)")
+                if closeCode == .normalClosure || closeCode == .goingAway {
+                    AppLogger.voice.info("WebSocket disconnected normally (code: \(closeCode.rawValue))")
                 } else {
-                    AppLogger.voice.info("WebSocket disconnected normally")
+                    AppLogger.voice.error("WebSocket disconnected with error code: \(closeCode.rawValue)")
                 }
 
                 self?.stopSession()
 
-                if let error = error {
-                    self?.voiceSessionState = .error("Disconnected: \(error.localizedDescription)")
+                if closeCode != .normalClosure && closeCode != .goingAway {
+                    self?.voiceSessionState = .error("Disconnected: \(closeCode.rawValue)")
                 }
             }
         }
@@ -202,9 +218,6 @@ class VoiceAssistantViewModel {
                 sampleRate: voiceService.requiredSampleRate
             )
             try voiceService.configureSession(config: sessionConfig, tools: tools)
-
-            // TODO: Send context message in service-specific way if needed
-            // For now, context can be integrated into instructions or sent via tool
 
             addSystemMessage("Session configured and ready")
 
@@ -272,49 +285,7 @@ class VoiceAssistantViewModel {
 
             guard !Task.isCancelled else { return }
 
-            // Start session duration timer
-            sessionStartTime = Date()
-            sessionElapsedTime = 0
-            trackedMinutes = 0
-            sessionTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-                guard let self = self, let startTime = self.sessionStartTime else { return }
-                self.sessionElapsedTime = Date().timeIntervalSince(startTime)
-
-                // Track usage every complete minute for xAI sessions
-                if self.selectedServiceType == .xai {
-                    let currentMinute = Int(self.sessionElapsedTime / 60)
-                    if currentMinute > self.trackedMinutes {
-                        self.trackedMinutes = currentMinute
-
-                        Task { @MainActor in
-                            do {
-                                let userId = try await self.authViewModel.authService.requiredUserId
-                                let result = await self.usageTracker.trackAndRegisterXAIUsage(
-                                    minutes: 1.0,
-                                    userId: userId
-                                )
-
-                                switch result {
-                                case .success(let balance):
-                                    if balance.remaining <= 0 {
-                                        AppLogger.voice.error("xAI usage depleted credits")
-                                        self.stopSession()
-                                        self.accessBlockedReason = .insufficientCredits
-                                    }
-                                case .failure(let error):
-                                    AppLogger.voice.error("xAI usage tracking failed: \(error)")
-                                    self.stopSession()
-                                    self.voiceSessionState = .error("Usage tracking failed. Session stopped.")
-                                }
-                            } catch {
-                                AppLogger.voice.error("Failed to get user ID: \(error)")
-                                self.stopSession()
-                                self.voiceSessionState = .error("Session stopped")
-                            }
-                        }
-                    }
-                }
-            }
+            usageClock.startTimer(for: selectedServiceType)
 
             guard !Task.isCancelled else { return }
 
@@ -334,42 +305,15 @@ class VoiceAssistantViewModel {
         currentAudioLevel = 0.0
         sessionStartStopTask?.cancel()
         sessionStartStopTask = Task { @MainActor in
-            // Track any remaining partial minute for Grok voice sessions
-            trackPartialUsageIfNeeded()
-
-            sessionTimer?.invalidate()
-            sessionTimer = nil
-            sessionStartTime = nil
-            sessionElapsedTime = 0
-            trackedMinutes = 0
+            // Track any remaining partial minute for xAI sessions
+            usageClock.trackPartialUsageIfNeeded(for: selectedServiceType)
+            usageClock.stopTimer()
 
             self.disconnect()
             currentAudioLevel = 0.0  // Reset waveform to baseline
         }
     }
 
-    /// Track any untracked partial usage for xAI sessions (called when app backgrounds or session stops)
-    func trackPartialUsageIfNeeded() {
-        guard selectedServiceType == .xai, sessionElapsedTime > 0 else { return }
-
-        let remainingSeconds = sessionElapsedTime.truncatingRemainder(dividingBy: 60)
-        if remainingSeconds > 0 {
-            // Register partial minute with server
-            Task { @MainActor in
-                do {
-                    let userId = try await authViewModel.authService.requiredUserId
-                    let minutes = remainingSeconds / 60.0
-                    _ = await usageTracker.trackAndRegisterXAIUsage(
-                        minutes: minutes,
-                        userId: userId
-                    )
-                    // Don't stop session on failure here - this is a checkpoint, not critical
-                } catch {
-                    AppLogger.voice.error("Failed to track partial usage: \(error)")
-                }
-            }
-        }
-    }
 
     // MARK: - Event Handling
 
@@ -449,7 +393,8 @@ class VoiceAssistantViewModel {
                     functionName: functionName,
                     arguments: toolCall.arguments,
                     previewTitle: "Allow \(functionName)?",
-                    previewContent: "Loading preview..."
+                    previewContent: "Loading preview...",
+                    itemId: toolCall.itemId
                 )
                 pendingToolCallQueue.append(newPendingTool)
 
@@ -478,7 +423,8 @@ class VoiceAssistantViewModel {
                             functionName: functionName,
                             arguments: toolCall.arguments,
                             previewTitle: preview?.title ?? "Allow \(functionName)?",
-                            previewContent: preview?.content ?? "Review and confirm this action"
+                            previewContent: preview?.content ?? "Review and confirm this action",
+                            itemId: toolCall.itemId
                         )
                     }
                 }
@@ -553,7 +499,7 @@ class VoiceAssistantViewModel {
                     from: toolCall.arguments.data(using: .utf8) ?? Data()
                 )
                 let originalToolCallId = params?.tool_call_id ?? "unknown"
-                let originalItemId = sessionState.toolCalls.first { $0.id == originalToolCallId }?.call.itemId
+                let originalItemId = pendingToolCallQueue.first { $0.id == originalToolCallId }?.itemId
 
                 switch action {
                 case .confirmAction:

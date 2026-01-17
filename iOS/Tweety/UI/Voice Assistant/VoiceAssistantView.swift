@@ -106,7 +106,7 @@ struct VoiceAssistantView: View {
                     ToolbarSpacer(.fixed, placement: .bottomBar)
 
                     ToolbarItem(placement: .bottomBar) {
-                        SessionTimerView(sessionStartTime: viewModel.sessionStartTime)
+                        SessionTimerView(sessionStartTime: viewModel.usageClock.sessionStartTime)
                     }
 
                     ToolbarItem(placement:.bottomBar) {
@@ -138,7 +138,7 @@ struct VoiceAssistantView: View {
             }
             .onChange(of: scenePhase) { oldPhase, newPhase in
                 if newPhase == .background {
-                    viewModel.trackPartialUsageIfNeeded()
+                    viewModel.usageClock.trackPartialUsageIfNeeded(for: viewModel.selectedServiceType)
                 }
             }
             .onChange(of: viewModel.selectedServiceType) { oldService, newService in

@@ -10,21 +10,20 @@ import OSLog
 import JSONSchema
 internal import OrderedCollections
 
-class XAIVoiceService: VoiceService {
+class XAIVoiceService: NSObject, VoiceService {
     private let baseProxyURL: URL = Config.baseXAIProxyURL
     private let baseURL: URL = Config.baseXAIURL
     private var sessionURL: URL { baseProxyURL.appending(path: "v1/realtime/client_secrets") }
     private var websocketURL: URL { baseURL.appending(path: "v1/realtime")}
 
     private var webSocketTask: URLSessionWebSocketTask?
-    private var urlSession: URLSession
-    let sessionState: SessionState
+    private var urlSession: URLSession!
 
     var requiredSampleRate: Int { sampleRate.rawValue }
 
     // Configuration
     let voice: XAIConversationEvent.SessionConfig.Voice
-    var instructions: String { VoiceInstructions.core }
+    var instructions: String { VoiceInstructions.buildInstructions() }
     private let sampleRate: XAIConversationEvent.AudioFormatType.SampleRate
 
     private let appAttestService: AppAttestService
@@ -32,100 +31,22 @@ class XAIVoiceService: VoiceService {
 
     // Callbacks - using abstracted types
     var onConnected: (() -> Void)?
-    var onDisconnected: ((Error?) -> Void)?
+    var onDisconnected: ((URLSessionWebSocketTask.CloseCode) -> Void)?
     var onEvent: ((VoiceEvent) -> Void)?
-    var onError: ((Error) -> Void)?
+    var onError: ((VoiceSessionError) -> Void)?
 
-    init(sessionState: SessionState, appAttestService: AppAttestService, authService: XAuthService, voice: XAIConversationEvent.SessionConfig.Voice = .Rex, sampleRate: XAIConversationEvent.AudioFormatType.SampleRate = .twentyFourKHz) {
-        self.sessionState = sessionState
+    init(appAttestService: AppAttestService, authService: XAuthService, voice: XAIConversationEvent.SessionConfig.Voice = .Rex, sampleRate: XAIConversationEvent.AudioFormatType.SampleRate = .twentyFourKHz) {
         self.appAttestService = appAttestService
         self.authService = authService
         self.voice = voice
         self.sampleRate = sampleRate
-        self.urlSession = URLSession(configuration: .default)
-    }
 
-    // MARK: - Translation Helpers
+        super.init()
 
-    /// Translate VoiceToolDefinition to XAI format
-    private func translateToolDefinition(_ tool: VoiceToolDefinition) -> XAIConversationEvent.ToolDefinition {
-        // Convert parameters dictionary to JSONSchema
-        let schema: JSONSchema
-        do {
-            let data = try JSONSerialization.data(withJSONObject: tool.parameters)
-            schema = try JSONDecoder().decode(JSONSchema.self, from: data)
-        } catch {
-            // Fallback to empty schema
-            schema = .object(properties: [:], required: [], additionalProperties: nil)
-        }
-
-        return XAIConversationEvent.ToolDefinition(
-            type: tool.type,
-            name: tool.name,
-            description: tool.description,
-            parameters: schema
-        )
-    }
-
-    /// Translate XAI event to abstracted VoiceEvent
-    private func translateEvent(_ message: XAIConversationEvent) -> VoiceEvent {
-        switch message.type {
-        case .conversationCreated:
-            return .sessionCreated
-
-        case .sessionUpdated:
-            return .sessionConfigured
-
-        case .inputAudioBufferSpeechStarted:
-            return .userSpeechStarted
-
-        case .inputAudioBufferSpeechStopped:
-            return .userSpeechStopped
-
-        case .responseOutputAudioDelta:
-            if let delta = message.delta, let audioData = Data(base64Encoded: delta) {
-                return .audioDelta(data: audioData)
-            }
-            return .other
-
-        case .responseFunctionCallArgumentsDone:
-            if let callId = message.call_id,
-               let name = message.name,
-               let arguments = message.arguments {
-                let toolCall = VoiceToolCall(
-                    id: callId,
-                    name: name,
-                    arguments: arguments,
-                    itemId: message.item_id
-                )
-                return .toolCall(toolCall)
-            }
-            return .other
-
-        case .responseOutputItemAdded:
-            if let item = message.item, let toolCalls = item.tool_calls {
-                // Return first tool call as event (others will be in subsequent events)
-                if let firstCall = toolCalls.first {
-                    let toolCall = VoiceToolCall(
-                        id: firstCall.id,
-                        name: firstCall.function.name,
-                        arguments: firstCall.function.arguments,
-                        itemId: item.id
-                    )
-                    return .toolCall(toolCall)
-                }
-            }
-            return .other
-
-        case .error:
-            if let errorText = message.text {
-                return .error(errorText)
-            }
-            return .error("Unknown error")
-
-        default:
-            return .other
-        }
+        let configuration = URLSessionConfiguration.default
+        let delegateQueue = OperationQueue()
+        delegateQueue.maxConcurrentOperationCount = 1
+        self.urlSession = URLSession(configuration: configuration, delegate: self, delegateQueue: delegateQueue)
     }
 
     // MARK: - Token Acquisition
@@ -148,42 +69,34 @@ class XAIVoiceService: VoiceService {
         AppLogger.logSensitive(AppLogger.network, level: .debug, "Request headers: \(request.allHTTPHeaderFields?.description ?? "none")")
         #endif
 
-        do {
-            let (data, response) = try await urlSession.data(for: request)
+        let (data, response) = try await urlSession.data(for: request)
 
-            guard let httpResponse = response as? HTTPURLResponse else {
-                AppLogger.network.error("Invalid HTTP response type")
-                throw VoiceServiceError.invalidResponse
-            }
-
-            #if DEBUG
-            AppLogger.network.debug("Response status: \(httpResponse.statusCode)")
-            AppLogger.logSensitive(AppLogger.network, level: .debug, "Response body:\n\(AppLogger.prettyJSON(data))")
-            #endif
-
-            guard httpResponse.statusCode == 200 else {
-                let errorText = String(data: data, encoding: .utf8) ?? "Unknown error"
-                AppLogger.network.error("Token request failed: HTTP \(httpResponse.statusCode) - \(errorText)")
-                throw VoiceServiceError.apiError(statusCode: httpResponse.statusCode, message: errorText)
-            }
-
-            let sessionToken = try JSONDecoder().decode(SessionToken.self, from: data)
-
-            #if DEBUG
-            AppLogger.logSensitive(AppLogger.network, level: .info, "Token acquired: \(AppLogger.redacted(sessionToken.value))")
-            AppLogger.network.debug("Token expires in: \(Int(sessionToken.expiresAt - Date().timeIntervalSince1970))s")
-            #else
-            AppLogger.network.info("Token acquired successfully")
-            #endif
-
-            return sessionToken
-
-        } catch let error as VoiceServiceError {
-            throw error
-        } catch {
-            AppLogger.network.error("Token request failed: \(error.localizedDescription)")
-            throw error
+        guard let httpResponse = response as? HTTPURLResponse else {
+            AppLogger.network.error("Invalid HTTP response type")
+            throw VoiceServiceSetupError.configurationFailed
         }
+
+        #if DEBUG
+        AppLogger.network.debug("Response status: \(httpResponse.statusCode)")
+        AppLogger.logSensitive(AppLogger.network, level: .debug, "Response body:\n\(AppLogger.prettyJSON(data))")
+        #endif
+
+        guard httpResponse.statusCode == 200 else {
+            let errorText = String(data: data, encoding: .utf8) ?? "Unknown error"
+            AppLogger.network.error("Token request failed: HTTP \(httpResponse.statusCode) - \(errorText)")
+            throw VoiceServiceSetupError.configurationFailed
+        }
+
+        let sessionToken = try JSONDecoder().decode(SessionToken.self, from: data)
+
+        #if DEBUG
+        AppLogger.logSensitive(AppLogger.network, level: .info, "Token acquired: \(AppLogger.redacted(sessionToken.value))")
+        AppLogger.network.debug("Token expires in: \(Int(sessionToken.expiresAt - Date().timeIntervalSince1970))s")
+        #else
+        AppLogger.network.info("Token acquired successfully")
+        #endif
+
+        return sessionToken
     }
 
     // MARK: - WebSocket Connection
@@ -222,7 +135,7 @@ class XAIVoiceService: VoiceService {
             text: nil,
             delta: nil,
             session: XAIConversationEvent.SessionConfig(
-                instructions: config.instructions + "\n\nToday's Date: \(DateFormatter.localizedString(from: Date(), dateStyle: .full, timeStyle: .none)).\nUser's Locale: \(Locale.current.identifier) (Language: \(Locale.current.language.languageCode?.identifier ?? "unknown"), Region: \(Locale.current.region?.identifier ?? "unknown"))",
+                instructions: config.instructions,
                 voice: voice,
                 audio: XAIConversationEvent.AudioConfig(
                     input: XAIConversationEvent.AudioFormat(
@@ -340,9 +253,6 @@ class XAIVoiceService: VoiceService {
     }
     
     func sendToolOutput(_ output: VoiceToolOutput) throws {
-        // Log response to SessionState
-        sessionState.updateResponse(id: output.toolCallId, responseString: output.output, success: output.success)
-
         let toolOutput = XAIConversationEvent(
             type: .conversationItemCreate,
             audio: nil,
@@ -388,7 +298,7 @@ class XAIVoiceService: VoiceService {
 
     func sendMessage(_ message: XAIConversationEvent) throws {
         guard let webSocketTask = webSocketTask, webSocketTask.state == .running else {
-            throw VoiceServiceError.notConnected
+            throw VoiceServiceSetupError.notConnected
         }
 
         let jsonData = try JSONEncoder().encode(message)
@@ -402,7 +312,7 @@ class XAIVoiceService: VoiceService {
 
         webSocketTask.send(wsMessage) { error in
             if let error = error {
-                self.onError?(error)
+                self.onError?(.websocketError(error))
             }
         }
     }
@@ -433,7 +343,7 @@ class XAIVoiceService: VoiceService {
 
             case .failure(let error):
                 AppLogger.voice.error("WebSocket receive error: \(error.localizedDescription)")
-                self.onDisconnected?(error)
+                self.onError?(.websocketError(error))
             }
         }
     }
@@ -463,18 +373,8 @@ class XAIVoiceService: VoiceService {
             onConnected?()
 
         case .responseFunctionCallArgumentsDone:
-             if let callId = message.call_id,
-                let name = message.name,
-                let arguments = message.arguments {
-
+             if let name = message.name {
                  AppLogger.tools.info("Tool call received: \(name)")
-                 let params: [String: Any]? = {
-                     guard let data = arguments.data(using: .utf8) else { return nil }
-                     return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-                 }()
-
-                 // Store tool call with conversation item ID for context linking
-                 sessionState.addCall(id: callId, toolName: name, parameters: params ?? ["raw": arguments], itemId: message.item_id)
              }
 
         case .responseDone:
@@ -505,5 +405,112 @@ class XAIVoiceService: VoiceService {
 
     deinit {
         disconnect()
+    }
+
+    // MARK: - Translation Helpers
+
+    /// Translate VoiceToolDefinition to XAI format
+    private func translateToolDefinition(_ tool: VoiceToolDefinition) -> XAIConversationEvent.ToolDefinition {
+        // Convert parameters dictionary to JSONSchema
+        let schema: JSONSchema
+        do {
+            let data = try JSONSerialization.data(withJSONObject: tool.parameters)
+            schema = try JSONDecoder().decode(JSONSchema.self, from: data)
+        } catch {
+            // Fallback to empty schema
+            schema = .object(properties: [:], required: [], additionalProperties: nil)
+        }
+
+        return XAIConversationEvent.ToolDefinition(
+            type: tool.type,
+            name: tool.name,
+            description: tool.description,
+            parameters: schema
+        )
+    }
+
+    /// Translate XAI event to abstracted VoiceEvent
+    private func translateEvent(_ message: XAIConversationEvent) -> VoiceEvent {
+        switch message.type {
+        case .conversationCreated:
+            return .sessionCreated
+
+        case .sessionUpdated:
+            return .sessionConfigured
+
+        case .inputAudioBufferSpeechStarted:
+            return .userSpeechStarted
+
+        case .inputAudioBufferSpeechStopped:
+            return .userSpeechStopped
+
+        case .responseOutputAudioDelta:
+            if let delta = message.delta, let audioData = Data(base64Encoded: delta) {
+                return .audioDelta(data: audioData)
+            }
+            return .other
+
+        case .responseFunctionCallArgumentsDone:
+            if let callId = message.call_id,
+               let name = message.name,
+               let arguments = message.arguments {
+                let toolCall = VoiceToolCall(
+                    id: callId,
+                    name: name,
+                    arguments: arguments,
+                    itemId: message.item_id
+                )
+                return .toolCall(toolCall)
+            }
+            return .other
+
+        case .responseOutputItemAdded:
+            if let item = message.item, let toolCalls = item.tool_calls {
+                // Return first tool call as event (others will be in subsequent events)
+                if let firstCall = toolCalls.first {
+                    let toolCall = VoiceToolCall(
+                        id: firstCall.id,
+                        name: firstCall.function.name,
+                        arguments: firstCall.function.arguments,
+                        itemId: item.id
+                    )
+                    return .toolCall(toolCall)
+                }
+            }
+            return .other
+
+        case .error:
+            if let errorText = message.text {
+                return .error(errorText)
+            }
+            return .error("Unknown error")
+
+        default:
+            return .other
+        }
+    }
+}
+
+// MARK: - URLSessionWebSocketDelegate
+
+extension XAIVoiceService {
+    nonisolated func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask, didCloseWith closeCode: URLSessionWebSocketTask.CloseCode, reason: Data?) {
+        let reasonString = reason.flatMap { String(data: $0, encoding: .utf8) }
+        AppLogger.voice.info("WebSocket closed with code: \(closeCode.rawValue)\(reasonString.map { " - \($0)" } ?? "")")
+
+        Task { @MainActor in
+            self.onDisconnected?(closeCode)
+        }
+    }
+
+    nonisolated func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        // This is called when the underlying task completes
+        // If there's an error, it means the connection failed at the transport level
+        if let error = error {
+            AppLogger.voice.error("WebSocket task completed with error: \(error.localizedDescription)")
+            Task { @MainActor in
+                self.onError?(.websocketError(error))
+            }
+        }
     }
 }

@@ -79,14 +79,14 @@ enum VoiceServiceType: String, CaseIterable, Identifiable {
     }
 
     /// Creates the appropriate voice service instance
-    func createService(sessionState: SessionState, appAttestService: AppAttestService, authService: XAuthService, storeManager: StoreKitManager, usageTracker: UsageTracker, voice: VoiceOption) -> VoiceService {
+    func createService(appAttestService: AppAttestService, authService: XAuthService, storeManager: StoreKitManager, usageTracker: UsageTracker, voice: VoiceOption) -> VoiceService {
         switch self {
         case .xai:
             let xaiVoice = XAIConversationEvent.SessionConfig.Voice(rawValue: voice.rawValue.capitalized) ?? .Rex
-            return XAIVoiceService(sessionState: sessionState, appAttestService: appAttestService, authService: authService, voice: xaiVoice, sampleRate: .twentyFourKHz)
+            return XAIVoiceService(appAttestService: appAttestService, authService: authService, voice: xaiVoice, sampleRate: .twentyFourKHz)
         case .openai:
             let openAIVoice = OpenAIVoiceService.Voice(rawValue: voice.rawValue) ?? .coral
-            return OpenAIVoiceService(sessionState: sessionState, appAttestService: appAttestService, authService: authService, storeManager: storeManager, usageTracker: usageTracker, voice: openAIVoice, sampleRate: 24000)
+            return OpenAIVoiceService(appAttestService: appAttestService, authService: authService, storeManager: storeManager, usageTracker: usageTracker, voice: openAIVoice, sampleRate: 24000)
         }
     }
 }

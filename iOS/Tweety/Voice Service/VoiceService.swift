@@ -6,20 +6,18 @@
 //
 
 import Foundation
+internal import os
 
 /// Protocol defining the interface for voice service implementations
-protocol VoiceService: AnyObject {
-    // Session state
-    var sessionState: SessionState { get }
-
+protocol VoiceService: AnyObject, URLSessionWebSocketDelegate {
     // Service-specific sample rate requirement
     var requiredSampleRate: Int { get }
 
     // Callbacks - use abstracted VoiceEvent instead of service-specific types
     var onConnected: (() -> Void)? { get set }
-    var onDisconnected: ((Error?) -> Void)? { get set }
+    var onDisconnected: ((URLSessionWebSocketTask.CloseCode) -> Void)? { get set }
     var onEvent: ((VoiceEvent) -> Void)? { get set }
-    var onError: ((Error) -> Void)? { get set }
+    var onError: ((VoiceSessionError) -> Void)? { get set }
 
     // Connection management
     func connect() async throws
@@ -38,34 +36,4 @@ protocol VoiceService: AnyObject {
 
     // Response control
     func truncateResponse() throws
-}
-
-/// Common errors that can occur with voice services
-enum VoiceServiceError: LocalizedError {
-    case notConnected
-    case invalidResponse
-    case apiError(statusCode: Int, message: String)
-    case authenticationFailed
-    case configurationFailed
-    case usageTrackingFailed(Error)
-    case insufficientCredits(balance: Double)
-
-    var errorDescription: String? {
-        switch self {
-        case .notConnected:
-            return "Voice service is not connected"
-        case .invalidResponse:
-            return "Received invalid response from server"
-        case .apiError(let statusCode, let message):
-            return "API error (\(statusCode)): \(message)"
-        case .authenticationFailed:
-            return "Failed to authenticate with voice service"
-        case .configurationFailed:
-            return "Failed to configure voice session"
-        case .usageTrackingFailed(let error):
-            return "Usage tracking failed: \(error.localizedDescription)"
-        case .insufficientCredits(let balance):
-            return "Insufficient credits ($\(balance))"
-        }
-    }
 }

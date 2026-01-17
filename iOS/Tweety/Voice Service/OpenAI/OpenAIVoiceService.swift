@@ -10,15 +10,14 @@ import OSLog
 import JSONSchema
 internal import OrderedCollections
 
-class OpenAIVoiceService: VoiceService {
+class OpenAIVoiceService: NSObject, VoiceService {
     private let baseProxyURL: URL = Config.baseOpenAIProxyURL
     private let baseURL: URL = Config.baseOpenAIURL
     private var tokenURL: URL { baseProxyURL.appending(path: "v1/realtime/client_secrets") }
     private var websocketURL: URL { baseURL.appending(path: "v1/realtime").appending(queryItems: [URLQueryItem(name: "model", value: "gpt-realtime")]) }
 
     private var webSocketTask: URLSessionWebSocketTask?
-    private var urlSession: URLSession
-    let sessionState: SessionState
+    private var urlSession: URLSession!
 
     var requiredSampleRate: Int { sampleRate }
 
@@ -28,7 +27,7 @@ class OpenAIVoiceService: VoiceService {
     }
 
     let voice: Voice
-    var instructions: String { VoiceInstructions.core }
+    var instructions: String { VoiceInstructions.buildInstructions() }
     private let sampleRate: Int
 
     // Track current assistant response item for truncation
@@ -42,106 +41,24 @@ class OpenAIVoiceService: VoiceService {
 
     // Callbacks - using abstracted types
     var onConnected: (() -> Void)?
-    var onDisconnected: ((Error?) -> Void)?
+    var onDisconnected: ((URLSessionWebSocketTask.CloseCode) -> Void)?
     var onEvent: ((VoiceEvent) -> Void)?
-    var onError: ((Error) -> Void)?
+    var onError: ((VoiceSessionError) -> Void)?
 
-    init(sessionState: SessionState, appAttestService: AppAttestService, authService: XAuthService, storeManager: StoreKitManager, usageTracker: UsageTracker, voice: Voice = .coral, sampleRate: Int = 24000) {
-        self.sessionState = sessionState
+    init(appAttestService: AppAttestService, authService: XAuthService, storeManager: StoreKitManager, usageTracker: UsageTracker, voice: Voice = .coral, sampleRate: Int = 24000) {
         self.appAttestService = appAttestService
         self.authService = authService
         self.storeManager = storeManager
         self.usageTracker = usageTracker
         self.voice = voice
         self.sampleRate = sampleRate
-        self.urlSession = URLSession(configuration: .default)
-    }
 
-    // MARK: - Translation Helpers
+        super.init()
 
-    /// Translate VoiceToolDefinition to OpenAI format
-    private func translateToolDefinition(_ tool: VoiceToolDefinition) -> OpenAIRealtimeEvent.ToolDefinition {
-        let params = tool.parameters
-
-        // Convert existing parameters to JSONSchema
-        let schema: JSONSchema
-        do {
-            let data = try JSONSerialization.data(withJSONObject: params)
-            schema = try JSONDecoder().decode(JSONSchema.self, from: data)
-        } catch {
-            // Fallback with dummy parameter
-            schema = .object(
-                properties: [
-                    "_unused": .string(description: "Unused parameter - this function takes no parameters")
-                ],
-                required: [],
-                additionalProperties: nil
-            )
-        }
-
-        return OpenAIRealtimeEvent.ToolDefinition(
-            type: tool.type,
-            name: tool.name,
-            description: tool.description,
-            parameters: schema
-        )
-    }
-
-    /// Translate OpenAI event to abstracted VoiceEvent
-    private func translateEvent(_ message: OpenAIRealtimeEvent) -> VoiceEvent {
-        switch message.type {
-        case .conversationCreated, .sessionCreated:
-            return .sessionCreated
-
-        case .sessionUpdated:
-            return .sessionConfigured
-
-        case .inputAudioBufferSpeechStarted:
-            return .userSpeechStarted
-
-        case .inputAudioBufferSpeechStopped:
-            return .userSpeechStopped
-
-        case .responseOutputAudioDelta:
-            if let delta = message.delta, let audioData = Data(base64Encoded: delta) {
-                // Track item_id from audio events for truncation
-                if let itemId = message.item_id {
-                    currentAssistantItemId = itemId
-                }
-
-                // Track audio duration for truncation (24kHz, 16-bit PCM, mono)
-                let durationMs = (audioData.count / 2) * 1000 / sampleRate  // 2 bytes per sample
-                currentAudioDurationMs += durationMs
-                return .audioDelta(data: audioData)
-            }
-            return .other
-
-        case .responseFunctionCallArgumentsDone:
-            if let callId = message.call_id,
-               let name = message.name,
-               let arguments = message.arguments {
-                let toolCall = VoiceToolCall(
-                    id: callId,
-                    name: name,
-                    arguments: arguments,
-                    itemId: message.item_id
-                )
-                return .toolCall(toolCall)
-            }
-            return .other
-
-        case .error:
-            if let error = message.error {
-                let errorMsg = "\(error.type ?? "Error"): \(error.message ?? "Unknown error") (code: \(error.code ?? "none"))"
-                return .error(errorMsg)
-            } else if let errorText = message.text {
-                return .error(errorText)
-            }
-            return .error("Unknown error")
-
-        default:
-            return .other
-        }
+        let configuration = URLSessionConfiguration.default
+        let delegateQueue = OperationQueue()
+        delegateQueue.maxConcurrentOperationCount = 1
+        self.urlSession = URLSession(configuration: configuration, delegate: self, delegateQueue: delegateQueue)
     }
 
     // MARK: - Token Acquisition
@@ -176,43 +93,35 @@ class OpenAIVoiceService: VoiceService {
         AppLogger.logSensitive(AppLogger.network, level: .debug, "Request body:\n\(AppLogger.prettyJSON(request.httpBody!))")
         #endif
 
-        do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await URLSession.shared.data(for: request)
 
-            guard let httpResponse = response as? HTTPURLResponse else {
-                AppLogger.network.error("Invalid HTTP response type")
-                throw VoiceServiceError.invalidResponse
-            }
-
-            #if DEBUG
-            AppLogger.network.debug("Response status: \(httpResponse.statusCode)")
-            AppLogger.logSensitive(AppLogger.network, level: .debug, "Response body:\n\(AppLogger.prettyJSON(data))")
-            #endif
-
-            guard httpResponse.statusCode == 200 else {
-                let errorText = String(data: data, encoding: .utf8) ?? "Unknown error"
-                AppLogger.network.error("Token request failed: HTTP \(httpResponse.statusCode) - \(errorText)")
-                throw VoiceServiceError.apiError(statusCode: httpResponse.statusCode, message: errorText)
-            }
-
-            // OpenAI returns: {"value": "token", "expires_at": timestamp}
-            let sessionToken = try JSONDecoder().decode(SessionToken.self, from: data)
-
-            #if DEBUG
-            AppLogger.logSensitive(AppLogger.network, level: .info, "Token acquired: \(AppLogger.redacted(sessionToken.value))")
-            AppLogger.network.debug("Token expires in: \(Int(sessionToken.expiresAt - Date().timeIntervalSince1970))s")
-            #else
-            AppLogger.network.info("Token acquired successfully")
-            #endif
-
-            return sessionToken
-
-        } catch let error as VoiceServiceError {
-            throw error
-        } catch {
-            AppLogger.network.error("Token request failed: \(error.localizedDescription)")
-            throw error
+        guard let httpResponse = response as? HTTPURLResponse else {
+            AppLogger.network.error("Invalid HTTP response type")
+            throw VoiceServiceSetupError.configurationFailed
         }
+
+        #if DEBUG
+        AppLogger.network.debug("Response status: \(httpResponse.statusCode)")
+        AppLogger.logSensitive(AppLogger.network, level: .debug, "Response body:\n\(AppLogger.prettyJSON(data))")
+        #endif
+
+        guard httpResponse.statusCode == 200 else {
+            let errorText = String(data: data, encoding: .utf8) ?? "Unknown error"
+            AppLogger.network.error("Token request failed: HTTP \(httpResponse.statusCode) - \(errorText)")
+            throw VoiceServiceSetupError.configurationFailed
+        }
+
+        // OpenAI returns: {"value": "token", "expires_at": timestamp}
+        let sessionToken = try JSONDecoder().decode(SessionToken.self, from: data)
+
+        #if DEBUG
+        AppLogger.logSensitive(AppLogger.network, level: .info, "Token acquired: \(AppLogger.redacted(sessionToken.value))")
+        AppLogger.network.debug("Token expires in: \(Int(sessionToken.expiresAt - Date().timeIntervalSince1970))s")
+        #else
+        AppLogger.network.info("Token acquired successfully")
+        #endif
+
+        return sessionToken
     }
 
     // MARK: - WebSocket Connection
@@ -253,7 +162,7 @@ class OpenAIVoiceService: VoiceService {
                 object: nil,
                 type: "realtime",
                 model: "gpt-realtime",
-                instructions: config.instructions + "\n\nToday's Date: \(DateFormatter.localizedString(from: Date(), dateStyle: .full, timeStyle: .none)).\nUser's Locale: \(Locale.current.identifier) (Language: \(Locale.current.language.languageCode?.identifier ?? "unknown"), Region: \(Locale.current.region?.identifier ?? "unknown"))",
+                instructions: config.instructions,
                 voice: nil, // Not used in OpenAI - it's in audio.output.voice
                 audio: OpenAIRealtimeEvent.AudioConfig(
                     input: OpenAIRealtimeEvent.AudioConfig.Input(
@@ -385,8 +294,6 @@ class OpenAIVoiceService: VoiceService {
     }
 
     func sendToolOutput(_ output: VoiceToolOutput) throws {
-        sessionState.updateResponse(id: output.toolCallId, responseString: output.output, success: output.success)
-
         let toolOutput = OpenAIRealtimeEvent(
             type: .conversationItemCreate,
             event_id: nil,
@@ -460,7 +367,7 @@ class OpenAIVoiceService: VoiceService {
     // MARK: - Message Handling
     func sendMessage(_ message: OpenAIRealtimeEvent) throws {
         guard let webSocketTask = webSocketTask, webSocketTask.state == .running else {
-            throw VoiceServiceError.notConnected
+            throw VoiceServiceSetupError.notConnected
         }
 
         let jsonData = try JSONEncoder().encode(message)
@@ -474,7 +381,7 @@ class OpenAIVoiceService: VoiceService {
 
         webSocketTask.send(wsMessage) { error in
             if let error = error {
-                self.onError?(error)
+                self.onError?(.websocketError(error))
             }
         }
     }
@@ -504,7 +411,7 @@ class OpenAIVoiceService: VoiceService {
 
             case .failure(let error):
                 AppLogger.voice.error("WebSocket receive error: \(error.localizedDescription)")
-                self.onDisconnected?(error)
+                self.onError?(.websocketError(error))
             }
         }
     }
@@ -539,15 +446,8 @@ class OpenAIVoiceService: VoiceService {
             AppLogger.voice.debug("New response created, reset audio tracking")
 
         case .responseFunctionCallArgumentsDone:
-            if let callId = message.call_id,
-               let name = message.name,
-               let arguments = message.arguments {
+            if let name = message.name {
                 AppLogger.tools.info("Tool call received: \(name)")
-                let params: [String: Any]? = {
-                    guard let data = arguments.data(using: .utf8) else { return nil }
-                    return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-                }()
-                sessionState.addCall(id: callId, toolName: name, parameters: params ?? ["raw": arguments], itemId: message.item_id)
             }
         case .responseDone:
             if let messageData = try? JSONEncoder().encode(message),
@@ -580,15 +480,15 @@ class OpenAIVoiceService: VoiceService {
                         case .success(let balance):
                             if balance.remaining <= 0 {
                                 AppLogger.voice.error("OpenAI usage reached ")
-                                self.onError?(VoiceServiceError.insufficientCredits(balance: balance.remaining.rounded(toPlaces: 2)))
+                                self.onError?(VoiceSessionError.insufficientCredits(balance: balance.remaining.rounded(toPlaces: 2)))
                             }
                         case .failure(let error):
                             AppLogger.voice.error("OpenAI usage tracking failed: \(error)")
-                            self.onError?(VoiceServiceError.usageTrackingFailed(error))
+                            self.onError?(VoiceSessionError.usageTrackingFailed(error))
                         }
                     } catch {
                         AppLogger.voice.error("Failed to track OpenAI usage: \(error)")
-                        self.onError?(VoiceServiceError.usageTrackingFailed(error))
+                        self.onError?(VoiceSessionError.usageTrackingFailed(error))
                     }
                 }
             }
@@ -613,5 +513,116 @@ class OpenAIVoiceService: VoiceService {
 
     deinit {
         disconnect()
+    }
+
+    // MARK: - Translation Helpers
+
+    /// Translate VoiceToolDefinition to OpenAI format
+    private func translateToolDefinition(_ tool: VoiceToolDefinition) -> OpenAIRealtimeEvent.ToolDefinition {
+        let params = tool.parameters
+
+        // Convert existing parameters to JSONSchema
+        let schema: JSONSchema
+        do {
+            let data = try JSONSerialization.data(withJSONObject: params)
+            schema = try JSONDecoder().decode(JSONSchema.self, from: data)
+        } catch {
+            // Fallback with dummy parameter
+            schema = .object(
+                properties: [
+                    "_unused": .string(description: "Unused parameter - this function takes no parameters")
+                ],
+                required: [],
+                additionalProperties: nil
+            )
+        }
+
+        return OpenAIRealtimeEvent.ToolDefinition(
+            type: tool.type,
+            name: tool.name,
+            description: tool.description,
+            parameters: schema
+        )
+    }
+
+    /// Translate OpenAI event to abstracted VoiceEvent
+    private func translateEvent(_ message: OpenAIRealtimeEvent) -> VoiceEvent {
+        switch message.type {
+        case .conversationCreated, .sessionCreated:
+            return .sessionCreated
+
+        case .sessionUpdated:
+            return .sessionConfigured
+
+        case .inputAudioBufferSpeechStarted:
+            return .userSpeechStarted
+
+        case .inputAudioBufferSpeechStopped:
+            return .userSpeechStopped
+
+        case .responseOutputAudioDelta:
+            if let delta = message.delta, let audioData = Data(base64Encoded: delta) {
+                // Track item_id from audio events for truncation
+                if let itemId = message.item_id {
+                    currentAssistantItemId = itemId
+                }
+
+                // Track audio duration for truncation (24kHz, 16-bit PCM, mono)
+                let durationMs = (audioData.count / 2) * 1000 / sampleRate  // 2 bytes per sample
+                currentAudioDurationMs += durationMs
+                return .audioDelta(data: audioData)
+            }
+            return .other
+
+        case .responseFunctionCallArgumentsDone:
+            if let callId = message.call_id,
+               let name = message.name,
+               let arguments = message.arguments {
+                let toolCall = VoiceToolCall(
+                    id: callId,
+                    name: name,
+                    arguments: arguments,
+                    itemId: message.item_id
+                )
+                return .toolCall(toolCall)
+            }
+            return .other
+
+        case .error:
+            if let error = message.error {
+                let errorMsg = "\(error.type ?? "Error"): \(error.message ?? "Unknown error") (code: \(error.code ?? "none"))"
+                return .error(errorMsg)
+            } else if let errorText = message.text {
+                return .error(errorText)
+            }
+            return .error("Unknown error")
+
+        default:
+            return .other
+        }
+    }
+}
+
+// MARK: - URLSessionWebSocketDelegate
+
+extension OpenAIVoiceService {
+    nonisolated func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask, didCloseWith closeCode: URLSessionWebSocketTask.CloseCode, reason: Data?) {
+        let reasonString = reason.flatMap { String(data: $0, encoding: .utf8) }
+        AppLogger.voice.info("WebSocket closed with code: \(closeCode.rawValue)\(reasonString.map { " - \($0)" } ?? "")")
+
+        Task { @MainActor in
+            self.onDisconnected?(closeCode)
+        }
+    }
+
+    nonisolated func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        // This is called when the underlying task completes
+        // If there's an error, it means the connection failed at the transport level
+        if let error = error {
+            AppLogger.voice.error("WebSocket task completed with error: \(error.localizedDescription)")
+            Task { @MainActor in
+                self.onError?(.websocketError(error))
+            }
+        }
     }
 }

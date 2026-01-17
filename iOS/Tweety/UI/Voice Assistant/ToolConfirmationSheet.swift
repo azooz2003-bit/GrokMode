@@ -131,7 +131,7 @@ private struct ToolIconRow: View {
 }
 
 #Preview("Sheet") {
-    ToolConfirmationSheet(toolCall: .init(id: "ddwd", functionName: "ffq", arguments: "fqfq", previewTitle: "fqf", previewContent: "fqffff"), serviceName: "xAI", onApprove: {}, onCancel: {})
+    ToolConfirmationSheet(toolCall: .init(id: "ddwd", functionName: "ffq", arguments: "fqfq", previewTitle: "fqf", previewContent: "fqffff", itemId: nil), serviceName: "xAI", onApprove: {}, onCancel: {})
 }
 
 #Preview("All Tool Icons") {
