@@ -72,7 +72,7 @@ class AudioStreamer: NSObject {
         }()
 
         let audioSession = AVAudioSession.sharedInstance()
-        try audioSession.setCategory(.playAndRecord, mode: .videoChat, options: [.defaultToSpeaker, .allowBluetoothHFP, .allowAirPlay])
+        try audioSession.setCategory(.playAndRecord, mode: .voiceChat, options: [.defaultToSpeaker, .allowBluetoothHFP, .allowAirPlay])
         try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
         AppLogger.audio.info("Audio session configured for voice processing")
 

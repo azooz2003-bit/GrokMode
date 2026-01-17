@@ -128,7 +128,7 @@ class VoiceAssistantViewModel {
         self.voiceService = voiceService
 
         // Initialize audio streamer with service-specific sample rate
-        audioStreamer = try? await AudioStreamer.make(xaiSampleRate: Double(voiceService.requiredSampleRate))
+        audioStreamer = try? await AudioStreamer.make(remoteSampleRate: Double(voiceService.requiredSampleRate))
         audioStreamer?.delegate = self
 
         // Set up callbacks (already on main actor)
