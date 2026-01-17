@@ -941,8 +941,105 @@ actor XToolOrchestrator {
             operation = .userInteractionCreate
             count = 1
 
-        default:
-            // Tools without usage tracking
+        // Read operations - Additional User queries
+        case .getUsersById, .getUsersByUsername, .getAuthenticatedUser,
+             .getMutedUsers, .getBlockedUsers, .getLikingUsers, .getRetweetedBy:
+            if let data = json["data"] as? [[String: Any]] {
+                operation = .userRead
+                count = data.count
+            } else if json["data"] != nil {
+                operation = .userRead
+                count = 1
+            }
+
+        // Read operations - Tweet counts and metrics
+        case .getRecentTweetCounts, .getAllTweetCounts, .getRetweets:
+            if let data = json["data"] as? [[String: Any]] {
+                operation = .postRead
+                count = data.count
+            } else if json["data"] != nil {
+                operation = .postRead
+                count = 1
+            }
+
+        // Read operations - Lists
+        case .getList, .getListMembers, .getListTweets, .getListFollowers,
+             .getPinnedLists, .getOwnedLists, .getFollowedLists, .getListMemberships:
+            if let data = json["data"] as? [[String: Any]] {
+                operation = .postRead  // Lists are billed similar to reading posts
+                count = data.count
+            } else if json["data"] != nil {
+                operation = .postRead
+                count = 1
+            }
+
+        // Create operations - List management
+        case .createList, .deleteList, .updateList, .addListMember, .removeListMember,
+             .pinList, .unpinList, .followList, .unfollowList:
+            operation = .userInteractionCreate
+            count = 1
+
+        // Read operations - Bookmarks
+        case .getUserBookmarks:
+            if let data = json["data"] as? [[String: Any]] {
+                operation = .postRead
+                count = data.count
+            } else if json["data"] != nil {
+                operation = .postRead
+                count = 1
+            }
+
+        // Read operations - Trends
+        case .getPersonalizedTrends:
+            if let data = json["data"] as? [[String: Any]] {
+                operation = .postRead
+                count = data.count
+            } else if json["data"] != nil {
+                operation = .postRead
+                count = 1
+            }
+
+        // Read operations - DM by participant
+        case .getConversationDMsByParticipant:
+            if let data = json["data"] as? [[String: Any]] {
+                operation = .dmEventRead
+                count = data.count
+            }
+
+        // Create operations - Community Notes
+        case .createNote, .deleteNote, .evaluateNote:
+            operation = .contentCreate
+            count = 1
+
+        // Read operations - Community Notes
+        case .getNotesWritten, .getPostsEligibleForNotes:
+            if let data = json["data"] as? [[String: Any]] {
+                operation = .postRead
+                count = data.count
+            } else if json["data"] != nil {
+                operation = .postRead
+                count = 1
+            }
+
+        // Media operations - Track as content creates
+        case .uploadMedia, .getMediaStatus, .initializeChunkedUpload,
+             .appendChunkedUpload, .finalizeChunkedUpload, .createMediaMetadata,
+             .getMediaAnalytics:
+            operation = .contentCreate
+            count = 1
+
+        // Read operations - News
+        case .getNewsById, .searchNews:
+            if let data = json["data"] as? [[String: Any]] {
+                operation = .postRead
+                count = data.count
+            } else if json["data"] != nil {
+                operation = .postRead
+                count = 1
+            }
+
+        // Tools without usage tracking (user confirmation/cancellation actions)
+        case .confirmAction, .cancelAction:
             return
         }
 
