@@ -293,6 +293,8 @@ class VoiceAssistantViewModel {
     }
 
     func stopSession() {
+        guard self.isSessionActivated else { return }
+        
         isSessionActivated = false
         currentAudioLevel = 0.0
         sessionStartStopTask?.cancel()
@@ -481,7 +483,6 @@ class VoiceAssistantViewModel {
 
             switch tool {
             case .flowAction(let action):
-                // Handle voice flow actions
                 struct ConfirmationParams: Codable {
                     let tool_call_id: String
                 }
@@ -532,7 +533,6 @@ class VoiceAssistantViewModel {
                 }
 
             case .apiEndpoint(let endpoint):
-                // Handle X API endpoints
                 guard let data = toolCall.arguments.data(using: .utf8),
                       let parameters = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
                     return
@@ -541,7 +541,6 @@ class VoiceAssistantViewModel {
                 let outputString: String
                 let isSuccess: Bool
 
-                // Handle X API endpoints through orchestrator
                 let orchestrator = XAPIOrchestrator(authService: authViewModel.authService, storeManager: storeManager, usageTracker: usageTracker)
                 let result = await orchestrator.executeEndpoint(endpoint, parameters: parameters, id: toolCall.id)
 
