@@ -13,14 +13,18 @@ import OSLog
 final class AuthViewModel {
     var isAuthenticated = false
     var currentUserHandle: String?
+    var isDeletingAccount = false
+    var error: Error?
 
     let authService: XAuthService
+    let accountService: TweetyAccountService
 
     init(appAttestService: AppAttestService) {
         let currentState = AuthState.loadFromKeychain()
         self.isAuthenticated = currentState.isAuthenticated
         self.currentUserHandle = currentState.currentUserHandle
         self.authService = XAuthService(authPresentationProvider: .init(), appAttestService: appAttestService)
+        self.accountService = TweetyAccountService(appAttestService: appAttestService)
     }
 
     func startObserving() async {
@@ -41,8 +45,22 @@ final class AuthViewModel {
         await authService.logout()
     }
 
-    func deleteAccountRequested() async {
+    func deleteAccount() async {
+        isDeletingAccount = true
 
+        do {
+            guard let userId = await authService.userId else {
+                throw TweetyAccountService.AccountServiceError.invalidResponse
+            }
+            
+            try await accountService.deleteAccount(userId: userId)
+
+            await authService.logout()
+        } catch {
+            self.error = error
+        }
+
+        isDeletingAccount = false
     }
 
     /// Get a valid access token, refreshing if necessary

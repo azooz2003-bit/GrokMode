@@ -8,7 +8,8 @@ import StoreKit
 
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
-    @State private var viewModel: StoreViewModel
+    @State private var storeVM: StoreViewModel
+    @State private var showDeleteAccountAlert = false
 
     let storeManager: StoreKitManager
     let usageTracker: UsageTracker
@@ -20,7 +21,7 @@ struct SettingsView: View {
         self.storeManager = storeManager
         self.usageTracker = usageTracker
         self.onLogout = onLogout
-        self._viewModel = State(initialValue: StoreViewModel(storeManager: storeManager, creditsService: creditsService, authService: authViewModel.authService))
+        self._storeVM = State(initialValue: StoreViewModel(storeManager: storeManager, creditsService: creditsService, authService: authViewModel.authService))
     }
 
     var body: some View {
@@ -28,18 +29,18 @@ struct SettingsView: View {
             List {
                 // MARK: Balance Header
                 Section {
-                    BalanceHeaderView(balance: viewModel.creditBalance)
+                    BalanceHeaderView(balance: storeVM.creditBalance)
                 }
 
                 // MARK: Subscriptions
-                if !viewModel.subscriptionProducts.isEmpty {
+                if !storeVM.subscriptionProducts.isEmpty {
                     Section("Subscriptions") {
-                        ForEach(viewModel.subscriptionProducts.sorted(by: { $0.price < $1.price })) { product in
+                        ForEach(storeVM.subscriptionProducts.sorted(by: { $0.price < $1.price })) { product in
                             PurchaseProductRow(
                                 product: product,
-                                isActive: viewModel.activeSubscriptions.contains(where: { $0.id == product.id }),
+                                isActive: storeVM.activeSubscriptions.contains(where: { $0.id == product.id }),
                                 onPurchase: {
-                                    await viewModel.purchase(product)
+                                    await storeVM.purchase(product)
                                 }
                             )
                         }
@@ -47,14 +48,14 @@ struct SettingsView: View {
                 }
 
                 // MARK: One-Time Purchases
-                if !viewModel.oneTimeProducts.isEmpty {
+                if !storeVM.oneTimeProducts.isEmpty {
                     Section("One-Time Purchases") {
-                        ForEach(viewModel.oneTimeProducts) { product in
+                        ForEach(storeVM.oneTimeProducts) { product in
                             PurchaseProductRow(
                                 product: product,
                                 isActive: false,
                                 onPurchase: {
-                                    await viewModel.purchase(product)
+                                    await storeVM.purchase(product)
                                 }
                             )
                         }
@@ -65,18 +66,18 @@ struct SettingsView: View {
                 Section("Account") {
                     Button {
                         Task {
-                            await viewModel.restorePurchases()
+                            await storeVM.restorePurchases()
                         }
                     } label: {
                         HStack {
                             Text("Restore Purchases")
                             Spacer()
-                            if viewModel.isPurchasing {
+                            if storeVM.isPurchasing {
                                 ProgressView()
                             }
                         }
                     }
-                    .disabled(viewModel.isPurchasing)
+                    .disabled(storeVM.isPurchasing)
 
 
                     #if DEBUG
@@ -115,10 +116,7 @@ struct SettingsView: View {
 
                     VStack {
                         Button {
-                            Task {
-                                await authViewModel.deleteAccountRequested()
-                            }
-
+                            showDeleteAccountAlert = true
                         } label: {
                             Text("Delete Tweety Account")
                                 .foregroundStyle(.red)
@@ -146,13 +144,30 @@ struct SettingsView: View {
                     }
                 }
             }
-            .alert("Error", isPresented: $viewModel.showError) {
+            .alert("Error", isPresented: $storeVM.showError) {
                 Button("OK") {}
             } message: {
-                Text(viewModel.errorMessage)
+                Text(storeVM.errorMessage)
+            }
+            .alert("Error", isPresented: Binding(
+                get: { authViewModel.error != nil },
+                set: { if !$0 { authViewModel.error = nil } }
+            )) {
+                Button("OK") {
+                    authViewModel.error = nil
+                }
+            } message: {
+                Text(authViewModel.error?.localizedDescription ?? "An unknown error occurred")
+            }
+            .alert("Delete account?", isPresented: $showDeleteAccountAlert) {
+                Button("Delete", role: .destructive) {
+                    Task {
+                        await authViewModel.deleteAccount()
+                    }
+                }
             }
             .overlay {
-                if viewModel.isPurchasing {
+                if storeVM.isPurchasing || authViewModel.isDeletingAccount {
                     ZStack {
                         Color.black.opacity(0.3)
                             .ignoresSafeArea()
@@ -168,7 +183,7 @@ struct SettingsView: View {
             .task {
                 await storeManager.restoreAllTransactions()
 
-                await viewModel.loadProductsAndBalance()
+                await storeVM.loadProductsAndBalance()
             }
         }
     }

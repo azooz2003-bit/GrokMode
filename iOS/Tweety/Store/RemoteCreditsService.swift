@@ -9,6 +9,26 @@ import Foundation
 internal import os
 
 actor RemoteCreditsService {
+    enum CreditsServiceError: Error, LocalizedError {
+        case invalidResponse
+        case serverError(String)
+        case networkError(Error)
+        case attestationFailed
+
+        var errorDescription: String? {
+            switch self {
+            case .invalidResponse:
+                return "Invalid response from server"
+            case .serverError(let message):
+                return "Server error: \(message)"
+            case .networkError(let error):
+                return "Network error: \(error.localizedDescription)"
+            case .attestationFailed:
+                return "Device attestation failed"
+            }
+        }
+    }
+
     private let appAttestService: AppAttestService
 
     init(appAttestService: AppAttestService) {

@@ -64,4 +64,5 @@ enum Config {
     static let usageTrackURL = creditsBaseURL.appending(path: "usage/track")
     static let balanceURL = creditsBaseURL.appending(path: "balance")
     static let freeAccessURL = creditsBaseURL.appending(path: "has-free-access")
+    static let accountDeletionURL = baseProxyURL.appending(path: "account")
 }

@@ -96,3 +96,18 @@ export async function logUsage(
 		'INSERT INTO usage_logs (user_id, service, amount, cost) VALUES (?, ?, ?, ?)'
 	).bind(userId, service, amount, cost).run();
 }
+
+export async function deleteUserAccount(userId: string, env: Env): Promise<void> {
+	// Delete from receipts, usage_logs, and users (free_access_users is preserved)
+	await env.tweety_credits.prepare(
+		'DELETE FROM receipts WHERE user_id = ?'
+	).bind(userId).run();
+
+	await env.tweety_credits.prepare(
+		'DELETE FROM usage_logs WHERE user_id = ?'
+	).bind(userId).run();
+
+	await env.tweety_credits.prepare(
+		'DELETE FROM users WHERE user_id = ?'
+	).bind(userId).run();
+}
