@@ -95,6 +95,12 @@ struct SettingsView: View {
                     #endif
                 }
 
+                Section("Preferences") {
+                    NavigationLink("Actions - Confirmation Required") {
+                        ConfirmationActionPreferencesView()
+                    }
+                }
+
                 // MARK: Logout & Delete
                 Section {
                     HStack(spacing: 0) {

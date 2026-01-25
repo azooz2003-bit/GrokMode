@@ -1104,4 +1104,9 @@ enum XAPIEndpoint: String, CaseIterable, Identifiable {
             }
         }
     }
+
+    /// All endpoints that require confirmation (have .requiresConfirmation preview behavior)
+    static var confirmationSensitiveEndpoints: [XAPIEndpoint] {
+        return allCases.filter { $0.previewBehavior == .requiresConfirmation }
+    }
 }
