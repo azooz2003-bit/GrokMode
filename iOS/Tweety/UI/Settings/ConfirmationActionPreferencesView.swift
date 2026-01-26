@@ -35,13 +35,27 @@ struct ConfirmationActionPreferencesView: View {
         }
         .toolbar {
             ToolbarItemGroup(placement: .secondaryAction) {
-                Button("Enable All", systemImage: allIsEnabled ? "checkmark" : "") {
-                    enableAll()
+                if allIsEnabled {
+                    Button("Enable All", systemImage: "checkmark") {
+                        enableAll()
+                    }
+                } else {
+                    Button("Enable All") {
+                        enableAll()
+                    }
                 }
 
-                Button("Disable All", systemImage: allIsDisabled ? "checkmark" : "") {
-                    disableAll()
+                if allIsDisabled {
+                    Button("Disable All", systemImage: "checkmark") {
+                        disableAll()
+                    }
+                } else {
+                    Button("Disable All") {
+                        disableAll()
+                    }
                 }
+
+
             }
         }
         .navigationTitle("Actions - Confirmation Required")
