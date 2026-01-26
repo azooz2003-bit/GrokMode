@@ -119,6 +119,7 @@
 			buildPhases = (
 				A34575752EE5109700E6576A /* Sources */,
 				A34575762EE5109700E6576A /* Frameworks */,
+				A37B4DC02F2701270095B46A /* Run Script */,
 				A34575772EE5109700E6576A /* Resources */,
 			);
 			buildRules = (
@@ -248,6 +249,30 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		A37B4DC02F2701270095B46A /* Run Script */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/Scripts/update-git-revision.sh",
+			);
+			name = "Run Script";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(SRCROOT)/Tweety/Info.plist",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Type a script or drag a script file from your workspace to insert its path.\n \"${SRCROOT}/Scripts/update-git-revision.sh\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		A34575752EE5109700E6576A /* Sources */ = {

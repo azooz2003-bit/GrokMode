@@ -25,6 +25,8 @@
 	</array>
 	<key>DEVELOPMENT_TEAM</key>
 	<string>$(DEVELOPMENT_TEAM)</string>
+	<key>GitRevision</key>
+	<string>56b3ea5</string>
 	<key>TEAM_ID</key>
 	<string>$(TEAM_ID)</string>
 	<key>UIBackgroundModes</key>
