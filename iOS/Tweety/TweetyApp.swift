@@ -10,6 +10,8 @@ internal import os
 
 @main
 struct TweetyApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
+    
     let creditsService: RemoteCreditsService
     let appAttestService: AppAttestService
 
