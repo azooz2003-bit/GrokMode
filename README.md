@@ -2,6 +2,16 @@
 
 X (Twitter) voice assistant app for iOS with real-time voice chat.
 
+## Important Note
+
+**`GoogleService-Info.plist` is not included in this repository.** This file contains Firebase project credentials and is excluded for security reasons. If you wish to build and run this project, you will need to:
+
+1. Create your own Firebase project at [Firebase Console](https://console.firebase.google.com)
+2. Download your own `GoogleService-Info.plist`
+3. Place it in `iOS/Tweety/`
+
+Alternatively, contact the repository owner for permission to use the existing Firebase project.
+
 ## Project Structure
 
 - **`iOS/Tweety/Audio/`** - Audio streaming and voice activity detection (VAD)

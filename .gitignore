@@ -69,3 +69,6 @@ Secrets.xcconfig
 .claude
 
 Docs/
+
+# Firebase
+GoogleService-Info.plist
