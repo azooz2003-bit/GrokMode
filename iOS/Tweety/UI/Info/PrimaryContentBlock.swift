@@ -50,11 +50,9 @@ struct PrimaryContentBlock: View {
             }
 
             VStack(spacing: 6) {
-                Group {
-                    imageView()
-                }
-                .background(.white.opacity(0.3))
-                .clipShape(Circle())
+                imageView()
+                    .background(.white.opacity(0.3))
+                    .clipShape(Circle())
 
                 Text(displayName)
                     .font(.system(size: 15, weight: .semibold))
@@ -70,8 +68,7 @@ struct PrimaryContentBlock: View {
                 .font(.system(size: 16))
                 .foregroundColor(.primary)
                 .lineLimit(5)
-                .frame(maxWidth: .infinity, maxHeight: 200, alignment: .topLeading)
-                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
 
             if let media = media, !media.isEmpty {
                 mediaGrid(mediaItems: media)

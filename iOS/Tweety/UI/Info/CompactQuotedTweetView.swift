@@ -29,7 +29,6 @@ struct CompactQuotedTweetView: View {
                 .font(.system(size: 14))
                 .foregroundColor(.primary)
                 .lineLimit(3)
-                .fixedSize(horizontal: false, vertical: true)
             if let media = media, let firstMedia = media.first, let urlString = firstMedia.displayUrl, let url = URL(string: urlString) {
                 CachedAsyncImage(url: url, imageCache: imageCache) { image in
                     image
